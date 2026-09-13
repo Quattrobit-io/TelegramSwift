@@ -54,14 +54,19 @@ class LeftSidebarFolderItem: TableRowItem {
     let badge: CGImage?
     let nameLayout: TextViewLayout
     let unreadCount: Int
+    private let folderCount: Int
+    #if OCTRON_EMBEDDED
+    private var horizontalExtent = leftSidebarWidth
+    #endif
     
     
-    init(_ initialSize: NSSize, context: AccountContext, folder: ChatListFilter, selected: Bool, unreadCount: Int, hasUnmutedUnread: Bool, callback: @escaping(ChatListFilter)->Void, menuItems: @escaping(ChatListFilter, Int?, Bool?) -> [ContextMenuItem]) {
+    init(_ initialSize: NSSize, context: AccountContext, folder: ChatListFilter, selected: Bool, unreadCount: Int, hasUnmutedUnread: Bool, folderCount: Int, callback: @escaping(ChatListFilter)->Void, menuItems: @escaping(ChatListFilter, Int?, Bool?) -> [ContextMenuItem]) {
         self.folder = folder
         self.context = context
         self.selected = selected
         self.callback = callback
         self.unreadCount = unreadCount
+        self.folderCount = folderCount
         self.menuItems = menuItems
         var folderIcon = FolderIcon(folder).icon(for: selected ? .sidebarActive : .sidebar)
         
@@ -135,6 +140,9 @@ class LeftSidebarFolderItem: TableRowItem {
         self.badge = generateIcon()
         self.icon = folderIcon
         super.init(initialSize)
+        #if OCTRON_EMBEDDED
+        makeSize(leftSidebarWidth)
+        #endif
     }
     
     override var stableId: AnyHashable {
@@ -179,8 +187,26 @@ class LeftSidebarFolderItem: TableRowItem {
     }
     
     override var height: CGFloat {
+        #if OCTRON_EMBEDDED
+        return horizontalExtent
+        #else
         return 32 + 8 + 8 + nameLayout.layoutSize.height + 4
+        #endif
     }
+
+    #if OCTRON_EMBEDDED
+    override var width: CGFloat { leftSidebarWidth }
+    override var reloadOnTableHeightChanged: Bool { true }
+
+    override func makeSize(_ width: CGFloat, oldWidth: CGFloat = 0) -> Bool {
+        let result = super.makeSize(width, oldWidth: oldWidth)
+        let available = Thread.isMainThread ? table?.frame.width : nil
+        horizontalExtent = max(leftSidebarEditSize, min(leftSidebarWidth,
+            (available ?? max(0, initialSize.width - leftSidebarEditSize)) / CGFloat(max(1, folderCount))))
+        nameLayout.measure(width: height - 10)
+        return result
+    }
+    #endif
     
     override func viewClass() -> AnyClass {
         return LeftSidebarFolderView.self
@@ -189,7 +215,13 @@ class LeftSidebarFolderItem: TableRowItem {
 }
 
 
-private final class LeftSidebarFolderView : TableRowView {
+#if OCTRON_EMBEDDED
+private typealias LeftSidebarFolderRowView = HorizontalRowView
+#else
+private typealias LeftSidebarFolderRowView = TableRowView
+#endif
+
+private final class LeftSidebarFolderView : LeftSidebarFolderRowView {
     private let imageView = ImageView(frame: NSMakeRect(0, 0, 32, 32))
     private let badgeView = ImageView()
     private let textView = InteractiveTextView()

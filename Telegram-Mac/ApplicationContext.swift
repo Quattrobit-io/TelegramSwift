@@ -155,6 +155,7 @@ enum ApplicationContextLaunchAction {
 
 
 let leftSidebarWidth: CGFloat = 72
+let leftSidebarEditSize: CGFloat = 50
 
 private final class ApplicationContainerView: View {
     fileprivate let splitView: SplitView
@@ -164,6 +165,8 @@ private final class ApplicationContainerView: View {
 
     func installEmbeddedContent(_ content: NSView) {
         splitView.removeFromSuperview()
+        backgroundColor = .clear
+        layer?.isOpaque = false
         embeddedContent = content
         addSubview(content)
         needsLayout = true
@@ -201,8 +204,13 @@ private final class ApplicationContainerView: View {
         
         let content = embeddedContent ?? splitView
         if let leftSideView = leftSideView {
-            leftSideView.frame = NSMakeRect(0, 0, leftSidebarWidth, frame.height)
-            content.frame = NSMakeRect(leftSideView.frame.maxX, 0, max(0, frame.width - leftSideView.frame.maxX), frame.height)
+            if embeddedContent != nil {
+                leftSideView.frame = NSMakeRect(0, 0, frame.width, leftSidebarWidth)
+                content.frame = NSMakeRect(0, leftSideView.frame.maxY, frame.width, max(0, frame.height - leftSideView.frame.maxY))
+            } else {
+                leftSideView.frame = NSMakeRect(0, 0, leftSidebarWidth, frame.height)
+                content.frame = NSMakeRect(leftSideView.frame.maxX, 0, max(0, frame.width - leftSideView.frame.maxX), frame.height)
+            }
         } else {
             content.frame = bounds
         }
@@ -585,7 +593,9 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
                 readySignal = .single(true)
             } else {
                 let controller = LeftSidebarController(context, filterData: leftController.chatList.filterSignal, updateFilter: leftController.chatList.updateFilter)
-                controller._frameRect = NSMakeRect(0, 0, leftSidebarWidth, window.frame.height)
+                controller._frameRect = embedded
+                    ? NSMakeRect(0, 0, view.frame.width, leftSidebarWidth)
+                    : NSMakeRect(0, 0, leftSidebarWidth, window.frame.height)
                 controller.loadViewIfNeeded()
                 self.leftSidebarController = controller
                 readySignal = controller.ready.get() |> take(1)

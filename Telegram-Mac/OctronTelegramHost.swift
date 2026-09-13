@@ -29,6 +29,7 @@ public final class OctronTelegramHost: NSObject {
         precondition(window is Window, "Telegram requires its native window factory")
         self.window = window as! Window
         super.init()
+        sidebar.layer?.isOpaque = false
         chat.minimumWidth = 380
         attachInput()
     }

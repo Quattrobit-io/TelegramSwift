@@ -1603,14 +1603,21 @@ class PeerListContainerView : Control {
 
         borderView.backgroundColor = theme.colors.border
                 
+        #if OCTRON_EMBEDDED
+        for view in [self, self.backgroundView, self.containerView] {
+            view.backgroundColor = .clear
+            view.layer?.isOpaque = false
+        }
+        #else
         self.backgroundColor = theme.colors.background
         self.backgroundView.backgroundColor = theme.colors.listBackground
+        self.containerView.backgroundColor = theme.colors.background
+        #endif
                 
         searchView.searchTheme = .init(theme.search.backgroundColor, theme.search.searchImage, theme.search.clearImage, {
             return strings().chatListSearchPlaceholder
         }, theme.search.textColor, theme.search.placeholderColor)
         
-        self.containerView.backgroundColor = theme.colors.background
         
         
         super.updateLocalizationAndTheme(theme: theme)

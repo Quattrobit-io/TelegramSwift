@@ -21,7 +21,8 @@ private class TabBarViewController : View {
     
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        self.background = presentation.colors.background
+        self.background = tabView.drawsBackground ? presentation.colors.background : .clear
+        self.layer?.isOpaque = tabView.drawsBackground
     }
     
     required public init?(coder: NSCoder) {
@@ -53,6 +54,14 @@ private class TabBarViewController : View {
 }
 
 public class TabBarController: ViewController, TabViewDelegate {
+
+    public var drawsBackground: Bool {
+        get { genericView.tabView.drawsBackground }
+        set {
+            genericView.tabView.drawsBackground = newValue
+            genericView.updateLocalizationAndTheme(theme: presentation)
+        }
+    }
 
     
     public var didChangedIndex:(Int)->Void = {_ in}

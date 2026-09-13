@@ -337,7 +337,13 @@ class MainViewController: TelegramViewController {
         self.bar = .init(height: 0)
         self.tabController.bar = .init(height: 0)
         
+        #if OCTRON_EMBEDDED
+        backgroundColor = .clear
+        view.layer?.isOpaque = false
+        tabController.drawsBackground = false
+        #else
         backgroundColor = theme.colors.background
+        #endif
         addSubview(self.tabController.view)
         
         if !context.isSupport {
@@ -555,6 +561,10 @@ class MainViewController: TelegramViewController {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         tabController.updateLocalizationAndTheme(theme: theme)
+        #if OCTRON_EMBEDDED
+        backgroundColor = .clear
+        view.layer?.isOpaque = false
+        #endif
         
         navigation.hasBarRightBorder = true
         navigation.hasBarLeftBorder = true

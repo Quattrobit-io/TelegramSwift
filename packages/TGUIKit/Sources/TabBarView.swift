@@ -17,6 +17,13 @@ public protocol TabViewDelegate : class {
 
 public class TabBarView: View {
 
+    public var drawsBackground = true {
+        didSet { updateLocalizationAndTheme(theme: presentation) }
+    }
+    private var tabBackground: NSColor {
+        drawsBackground ? presentation.colors.background : .clear
+    }
+
     private var tabs:[TabItem] = []
     public private(set) var selectedIndex:Int = 0
     
@@ -58,8 +65,8 @@ public class TabBarView: View {
         subview?.animates = true
         subview?.image = self.selectedIndex == index ? tab.selectedImage : tab.image
         subview?.animates = false
-        (self.subviews[index] as? Control)?.backgroundColor = presentation.colors.background
-        (self.subviews[index].subviews.first as? View)?.backgroundColor = presentation.colors.background
+        (self.subviews[index] as? Control)?.backgroundColor = tabBackground
+        (self.subviews[index].subviews.first as? View)?.backgroundColor = tabBackground
 
         if let subView = tab.subNode?.view {
             while self.subviews[index].subviews.count > 1 {
@@ -123,7 +130,8 @@ public class TabBarView: View {
             let tab = tabs[i]
             let itemWidth = defWidth
             let view = Control(frame: NSMakeRect(xOffset, .borderSize, itemWidth, height))
-            view.backgroundColor = presentation.colors.background
+            view.backgroundColor = tabBackground
+            view.layer?.isOpaque = drawsBackground
             let container = View(frame: view.bounds)
             view.set(handler: { [weak self] control in
                 self?.tabs[i].longHoverHandler?(control)
@@ -143,7 +151,8 @@ public class TabBarView: View {
             let imageView = tab.makeView()
             tab.setSelected(false, for: imageView, animated: false)
             container.addSubview(imageView)
-            container.backgroundColor = presentation.colors.background
+            container.backgroundColor = tabBackground
+            container.layer?.isOpaque = drawsBackground
             container.setFrameSize(NSMakeSize(NSWidth(imageView.frame), NSHeight(container.frame)))
             view.addSubview(container)
             
@@ -165,12 +174,15 @@ public class TabBarView: View {
     
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         for subview in subviews {
-            subview.background = presentation.colors.background
-            for container in subview.subviews {
-                //container.background = presentation.colors.background
+            subview.background = tabBackground
+            subview.layer?.isOpaque = drawsBackground
+            if let container = subview.subviews.first {
+                container.background = tabBackground
+                container.layer?.isOpaque = drawsBackground
             }
         }
-        self.backgroundColor = presentation.colors.background
+        self.backgroundColor = tabBackground
+        self.layer?.isOpaque = drawsBackground
         needsDisplay = true
         super.updateLocalizationAndTheme(theme: theme)
     }

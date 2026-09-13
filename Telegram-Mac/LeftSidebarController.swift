@@ -105,17 +105,25 @@ private final class LeftSidebarArguments {
 
 
 final class LeftSidebarView: Control {
+    #if OCTRON_EMBEDDED
+    fileprivate let tableView = HorizontalTableView(frame: .zero)
+    #else
     fileprivate let tableView = TableView()
     private let visualEffectView: NSVisualEffectView
     private let borderView = View()
+    #endif
     fileprivate var context: AccountContext?
     fileprivate let edit = ImageButton()
     required init(frame frameRect: NSRect) {
+        #if !OCTRON_EMBEDDED
         self.visualEffectView = NSVisualEffectView(frame: NSMakeRect(0, 0, frameRect.width, frameRect.height))
+        #endif
         super.init(frame: frameRect)
         
+        #if !OCTRON_EMBEDDED
         addSubview(self.visualEffectView)
         addSubview(self.borderView)
+        #endif
 
         addSubview(self.tableView)
         addSubview(self.edit)
@@ -123,9 +131,11 @@ final class LeftSidebarView: Control {
             return .clear
         }
 
+        #if !OCTRON_EMBEDDED
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.material = .ultraDark
         visualEffectView.state = .active
+        #endif
         
         self.edit.autohighlight = false
         self.edit.scaleOnClick = false
@@ -147,10 +157,15 @@ final class LeftSidebarView: Control {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = theme as! TelegramPresentationTheme
         
+        #if OCTRON_EMBEDDED
+        self.backgroundColor = .clear
+        self.layer?.isOpaque = false
+        #else
         borderView.backgroundColor = theme.colors.border
         self.backgroundColor = theme.colors.listBackground
         self.borderView.isHidden = !theme.colors.isDark
         self.visualEffectView.isHidden = theme.colors.isDark
+        #endif
         self.edit.set(image: theme.icons.folders_sidebar_edit, for: .Normal)
         self.edit.set(image: theme.icons.folders_sidebar_edit_active, for: .Highlight)
         self.edit.borderColor = theme.colors.grayIcon.withAlphaComponent(0.1)
@@ -164,11 +179,18 @@ final class LeftSidebarView: Control {
     
     override func layout() {
         super.layout()
+        #if OCTRON_EMBEDDED
+        let editWidth = min(leftSidebarEditSize, frame.width)
+        self.tableView.frame = NSMakeRect(0, 0, max(0, frame.width - editWidth), frame.height)
+        self.edit.frame = NSMakeRect(frame.width - editWidth, 0, editWidth, frame.height)
+        self.edit.border = []
+        #else
         self.visualEffectView.frame = bounds
-        self.tableView.frame = NSMakeRect(0, 0, frame.width, frame.height - 50)
+        self.tableView.frame = NSMakeRect(0, 0, frame.width, frame.height - leftSidebarEditSize)
         self.borderView.frame = NSMakeRect(frame.width - .borderSize, 0, .borderSize, frame.height)
-        self.edit.frame = NSMakeRect(0, frame.height - 50, frame.width, 50)
+        self.edit.frame = NSMakeRect(0, frame.height - leftSidebarEditSize, frame.width, leftSidebarEditSize)
         self.edit.border = tableView.frame.height < tableView.documentSize.height ? [.Top] : []
+        #endif
     }
 }
 
@@ -177,13 +199,13 @@ private enum LeftSibarBarEntry : Comparable, Identifiable {
         return lhs.index < rhs.index
     }
     case topOffset
-    case folder(index: Int, selected: Bool, filter: ChatListFilter, unreadCount: Int, hasUnmutedUnread: Bool)
+    case folder(index: Int, selected: Bool, filter: ChatListFilter, unreadCount: Int, hasUnmutedUnread: Bool, folderCount: Int)
     
     var stableId: Int32 {
         switch self {
         case .topOffset:
             return -2
-        case let .folder(_, _, filter, _, _):
+        case let .folder(_, _, filter, _, _, _):
             return filter.id
         }
     }
@@ -192,15 +214,15 @@ private enum LeftSibarBarEntry : Comparable, Identifiable {
         switch self {
         case .topOffset:
             return -1
-        case let .folder(index, _, _, _, _):
+        case let .folder(index, _, _, _, _, _):
             return index
         }
     }
     
     func item(_ arguments: LeftSidebarArguments, initialSize: NSSize) -> TableRowItem {
         switch self {
-        case let .folder(_, selected, filter, unreadCount, hasUnmutedUnread):
-            return LeftSidebarFolderItem(initialSize, context: arguments.context, folder: filter, selected: selected, unreadCount: unreadCount, hasUnmutedUnread: hasUnmutedUnread, callback: arguments.callback, menuItems: arguments.menuItems)
+        case let .folder(_, selected, filter, unreadCount, hasUnmutedUnread, folderCount):
+            return LeftSidebarFolderItem(initialSize, context: arguments.context, folder: filter, selected: selected, unreadCount: unreadCount, hasUnmutedUnread: hasUnmutedUnread, folderCount: folderCount, callback: arguments.callback, menuItems: arguments.menuItems)
         case .topOffset:
             return GeneralRowItem(initialSize, height: 10, stableId: stableId, backgroundColor: .clear)
         }
@@ -211,11 +233,13 @@ private func leftSidebarEntries(_ filterData: FilterData, _ badges: ChatListFilt
     var index: Int = 1
     
     var entries:[LeftSibarBarEntry] = []
+    #if !OCTRON_EMBEDDED
     entries.append(.topOffset)
+    #endif
     
     for filter in filterData.tabs {
         let badge = badges.count(for: filter)
-        entries.append(.folder(index: index, selected: filter.id == filterData.filter.id, filter: filter, unreadCount: badge?.count ?? 0, hasUnmutedUnread: badge?.hasUnmutedUnread ?? false))
+        entries.append(.folder(index: index, selected: filter.id == filterData.filter.id, filter: filter, unreadCount: badge?.count ?? 0, hasUnmutedUnread: badge?.hasUnmutedUnread ?? false, folderCount: filterData.tabs.count))
         index += 1
     }
     
@@ -291,17 +315,18 @@ class LeftSidebarController: TelegramGenericViewController<LeftSidebarView> {
             self.genericView.updateLocalizationAndTheme(theme: theme)
             self.readyOnce()
             
-            let range:NSRange
-            if context.isPremium {
-                range = NSMakeRange(1, self.genericView.tableView.count - 1)
-            } else {
-                range = NSMakeRange(2, self.genericView.tableView.count - 2)
-            }
+            #if OCTRON_EMBEDDED
+            let firstFolder = 0
+            #else
+            let firstFolder = 1
+            #endif
+            let firstMovable = firstFolder + (context.isPremium ? 0 : 1)
+            let range = NSMakeRange(firstMovable, max(0, self.genericView.tableView.count - firstMovable))
             if self.genericView.tableView.resortController?.resortRange != range {
                 self.genericView.tableView.resortController = TableResortController(resortRange: range, start: { _ in }, resort: { _ in }, complete: { from, to in
                     _ = context.engine.peers.updateChatListFiltersInteractively({ filters in
                         var filters = filters
-                        filters.move(at: from - 1, to: to - 1)
+                        filters.move(at: from - firstFolder, to: to - firstFolder)
                         return filters
                     }).start()
                 })
