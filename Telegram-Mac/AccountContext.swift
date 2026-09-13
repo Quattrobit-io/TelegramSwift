@@ -484,7 +484,9 @@ final class AccountContext {
     let activeSessionsContext: ActiveSessionsContext
     let webSessions: WebSessionsContext
     let reactions: Reactions
+    #if !OCTRON_EMBEDDED
     let dockControl: DockControl
+    #endif
     private(set) var reactionSettings: ReactionSettings = ReactionSettings.default
     private let reactionSettingsDisposable = MetaDisposable()
     private var chatInterfaceTempState:[PeerId : ChatInterfaceTempState] = [:]
@@ -714,7 +716,9 @@ final class AccountContext {
         self.webSessions = engine.privacy.webSessions()
         self.networkStatusManager = NetworkStatusManager(account: account, window: window, sharedContext: sharedContext)
         self.reactions = Reactions(engine)
+        #if !OCTRON_EMBEDDED
         self.dockControl = DockControl(engine, accountManager: sharedContext.accountManager)
+        #endif
         self.starsContext = engine.payments.peerStarsContext()
         self.tonContext = engine.payments.peerTonContext()
         self.starsSubscriptionsContext = engine.payments.peerStarsSubscriptionsContext(starsContext: self.starsContext)
@@ -1252,7 +1256,9 @@ final class AccountContext {
         _chatThemes.set(.single([]))
         _cloudThemes.set(.single(.init(themes: [], list: [:], default: nil, custom: nil)))
         reactionSettingsDisposable.dispose()
+        #if !OCTRON_EMBEDDED
         dockControl.clear()
+        #endif
         #endif
     }
     

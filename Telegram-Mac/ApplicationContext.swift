@@ -581,8 +581,8 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         }
 
                 
-        let currentSidebar = !folders.isEmpty && (folders.sidebar)
-        let previousSidebar = self.folders == nil ? nil : !self.folders!.isEmpty && (self.folders!.sidebar)
+        let currentSidebar = !folders.isEmpty && (embedded || folders.sidebar)
+        let previousSidebar = self.folders == nil ? nil : !self.folders!.isEmpty && (embedded || self.folders!.sidebar)
 
         let readySignal: Signal<Bool, NoError>
         

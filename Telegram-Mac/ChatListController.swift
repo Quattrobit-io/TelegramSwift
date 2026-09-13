@@ -662,7 +662,11 @@ struct FilterData : Equatable {
     init(filter: ChatListFilter = .allChats, tabs: [ChatListFilter] = [], sidebar: Bool = false, showTags: Bool = false, request: ChatListIndexRequest = .Initial(50, nil), badges: ChatListFilterBadges = .init(total: 0, filters: []), requestTimestamp: TimeInterval = CACurrentMediaTime(), isTop: Bool = true) {
         self.filter = filter
         self.tabs = tabs
+        #if OCTRON_EMBEDDED
+        self.sidebar = true
+        #else
         self.sidebar = sidebar
+        #endif
         self.request = request
         self.badges = badges
         self.showTags = showTags

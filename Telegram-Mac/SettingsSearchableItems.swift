@@ -363,16 +363,19 @@ private func notificationSearchableItems(context: AccountContext, settings: Glob
         present(.push, NotificationPreferencesController(context, focusOnItemTag: itemTag))
     }
     
-    return [
+    var items = [
         SettingsSearchableItem(id: .notifications(0), title: strings().accountSettingsNotifications, alternate: synonyms(strings().settingsSearchSynonymsNotificationsTitle), icon: icon, breadcrumbs: [], present: { context, _, present in
             presentNotificationSettings(context, present, nil)
         }),
+    ]
+    #if !OCTRON_EMBEDDED
+    items.append(
         SettingsSearchableItem(id: .notifications(2), title: strings().notificationSettingsMessagesPreview, alternate: synonyms(strings().settingsSearchSynonymsNotificationsMessageNotificationsPreview), icon: icon, breadcrumbs: [strings().accountSettingsNotifications, strings().notificationSettingsToggleNotificationsHeader], present: { context, _, present in
             presentNotificationSettings(context, present, .messagePreviews)
-        }),
-//        SettingsSearchableItem(id: .notifications(18), title: strings().notificationSettingsIncludeGroups, alternate: synonyms(strings().settingsSearchSynonymsNotificationsBadgeIncludeMutedPublicGroups), icon: icon, breadcrumbs: [strings().accountSettingsNotifications, strings().notificationSettingsBadgeHeader], present: { context, _, present in
-//            presentNotificationSettings(context, present, .includePublicGroups)
-//        }),
+        })
+    )
+    #endif
+    items.append(contentsOf: [
         SettingsSearchableItem(id: .notifications(19), title: strings().notificationSettingsIncludeChannels, alternate: synonyms(strings().settingsSearchSynonymsNotificationsBadgeIncludeMutedChannels), icon: icon, breadcrumbs: [strings().accountSettingsNotifications, strings().notificationSettingsBadgeHeader], present: { context, _, present in
             presentNotificationSettings(context, present, .includeChannels)
         }),
@@ -385,7 +388,8 @@ private func notificationSearchableItems(context: AccountContext, settings: Glob
         SettingsSearchableItem(id: .notifications(22), title: strings().notificationSettingsResetNotifications, alternate: synonyms(strings().settingsSearchSynonymsNotificationsResetAllNotifications), icon: icon, breadcrumbs: [strings().accountSettingsNotifications], present: { context, _, present in
             presentNotificationSettings(context, present, .reset)
         })
-    ]
+    ])
+    return items
 }
 
 private func privacySearchableItems(context: AccountContext, privacySettings: AccountPrivacySettings?) -> [SettingsSearchableItem] {
@@ -586,13 +590,16 @@ private func appearanceSearchableItems(context: AccountContext) -> [SettingsSear
         present(.push, AppAppearanceViewController(context: context, focusOnItemTag: itemTag))
     }
     
-    return [
+    var items = [
         SettingsSearchableItem(id: .appearance(0), title: strings().accountSettingsTheme, alternate: synonyms(strings().settingsSearchSynonymsAppearanceTitle), icon: icon, breadcrumbs: [], present: { context, _, present in
             presentAppearanceSettings(context, present, nil)
         }),
         SettingsSearchableItem(id: .appearance(1), title: strings().appearanceSettingsTextSizeHeader, alternate: synonyms(strings().settingsSearchSynonymsAppearanceTextSize), icon: icon, breadcrumbs: [strings().accountSettingsTheme], present: { context, _, present in
             presentAppearanceSettings(context, present, .fontSize)
         }),
+    ]
+    #if !OCTRON_EMBEDDED
+    items.append(contentsOf: [
         SettingsSearchableItem(id: .appearance(2), title: strings().generalSettingsChatBackground, alternate: synonyms(strings().settingsSearchSynonymsAppearanceChatBackground), icon: icon, breadcrumbs: [strings().accountSettingsTheme], present: { context, _, present in
             showModal(with: ChatWallpaperModalController(context), for: context.window)
         }),
@@ -602,10 +609,14 @@ private func appearanceSearchableItems(context: AccountContext) -> [SettingsSear
         SettingsSearchableItem(id: .appearance(6), title: strings().appearanceSettingsColorThemeHeader, alternate: synonyms(strings().settingsSearchSynonymsAppearanceColorTheme), icon: icon, breadcrumbs: [strings().accountSettingsTheme], present: { context, _, present in
             presentAppearanceSettings(context, present, .accentColor)
         }),
+    ])
+    #endif
+    items.append(
         SettingsSearchableItem(id: .appearance(6), title: strings().appearanceSettingsChatViewHeader, alternate: synonyms(strings().settingsSearchSynonymsAppearanceChatMode), icon: icon, breadcrumbs: [strings().accountSettingsTheme], present: { context, _, present in
             presentAppearanceSettings(context, present, .chatMode)
-        }),
-    ]
+        })
+    )
+    return items
 }
 
 private func languageSearchableItems(context: AccountContext, localizations: [LocalizationInfo]) -> [SettingsSearchableItem] {

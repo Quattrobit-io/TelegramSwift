@@ -179,8 +179,13 @@ class GlobalBadgeNode: Node {
             } |> deliverOnMainQueue
         }
         
-        s = combineLatest(s, chatListFolderSettings(account.postbox)) |> map {
-            return Result(dockText: $0.dockText, total: $1.sidebar && removeWhenSidebar ? 0 : $0.total)
+        #if OCTRON_EMBEDDED
+        let sidebar = chatListFilterPreferences(engine: TelegramEngine(account: account)) |> map { !$0.isEmpty }
+        #else
+        let sidebar = chatListFolderSettings(account.postbox) |> map { $0.sidebar }
+        #endif
+        s = combineLatest(s, sidebar) |> map {
+            return Result(dockText: $0.dockText, total: $1 && removeWhenSidebar ? 0 : $0.total)
         } |> deliverOnMainQueue
         
         let semaphore = DispatchSemaphore(value: 0)

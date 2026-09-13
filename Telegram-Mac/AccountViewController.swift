@@ -387,7 +387,12 @@ private enum AccountInfoEntry : TableItemListNodeEntry {
                 arguments.presentController(InstalledStickerPacksController(arguments.context), true)
             }, border:[BorderType.Right], inset:NSEdgeInsets(left: 12, right: 12))
         case let .notifications(_, viewType, status):
-            return GeneralInteractedRowItem(initialSize, stableId: stableId, name: strings().accountSettingsNotifications, icon: theme.icons.settingsNotifications, activeIcon: theme.icons.settingsNotificationsActive, type: status == .denied ? .image(#imageLiteral(resourceName: "Icon_MessageSentFailed").precomposed()) : .next, viewType: viewType, action: {
+            #if OCTRON_EMBEDDED
+            let notificationType: GeneralInteractedType = .next
+            #else
+            let notificationType: GeneralInteractedType = status == .denied ? .image(#imageLiteral(resourceName: "Icon_MessageSentFailed").precomposed()) : .next
+            #endif
+            return GeneralInteractedRowItem(initialSize, stableId: stableId, name: strings().accountSettingsNotifications, icon: theme.icons.settingsNotifications, activeIcon: theme.icons.settingsNotificationsActive, type: notificationType, viewType: viewType, action: {
                 arguments.presentController(NotificationPreferencesController(arguments.context), true)
             }, border:[BorderType.Right], inset:NSEdgeInsets(left: 12, right: 12))
         case let .language(_, viewType, current):

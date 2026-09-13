@@ -217,6 +217,7 @@ private func chatListPresetEntries(filtersWithCounts: [(ChatListFilter, Int)], s
     sectionId += 1
     
     
+    #if !OCTRON_EMBEDDED
     if !filtersWithCounts.isEmpty {
         
         entries.append(.desc(sectionId: sectionId, index: index, text: .plain(strings().chatListFilterTabBarHeader), data: .init(color: theme.colors.listGrayText, detectBold: true, viewType: .textTopItem)))
@@ -237,6 +238,7 @@ private func chatListPresetEntries(filtersWithCounts: [(ChatListFilter, Int)], s
     }
     
     
+    #endif
     return entries
 }
 

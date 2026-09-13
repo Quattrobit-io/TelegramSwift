@@ -313,8 +313,10 @@ private func editInfoEntries(state: EditInfoState, arguments: EditInfoController
     entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_phone, data: InputDataGeneralData(name: strings().editAccountChangeNumber, color: theme.colors.text, icon: nil, type: .nextContext(state.phone != nil ? formatPhoneNumber(context: arguments.context, number: state.phone!) : ""), viewType: .innerItem, action: nil)))
     index += 1
     
+    #if !OCTRON_EMBEDDED
     entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_name_color, data: InputDataGeneralData(name: strings().appearanceYourNameColor, color: theme.colors.text, type: .imageContext(generateSettingsMenuPeerColorsLabelIcon(peer: state.peer, context: arguments.context), ""), viewType: .innerItem, action: arguments.userNameColor)))
     index += 1
+    #endif
     
     entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_personal_channel, data: InputDataGeneralData(name: strings().editAccountPersonalChannel, color: theme.colors.text, type: .nextContext(state.personalChannel?._asPeer().displayTitle ?? strings().editAccountPersonalChannelAdd), viewType: .lastItem, action: arguments.personalChannel)))
     index += 1

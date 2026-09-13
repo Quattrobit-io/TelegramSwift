@@ -324,6 +324,7 @@ private func appAppearanceEntries(appearance: Appearance, state: State, settings
     entries.append(.sectionId(sectionId, type: .normal))
     sectionId += 1
 
+    #if !OCTRON_EMBEDDED
     entries.append(.desc(sectionId: sectionId, index: index, text: .plain(strings().appearanceSettingsColorThemeHeader), data: .init(viewType: .textTopItem)))
     index += 1
     
@@ -478,12 +479,19 @@ private func appAppearanceEntries(appearance: Appearance, state: State, settings
    
     
     
-    entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_theme_chat_mode, data: InputDataGeneralData(name: strings().appearanceSettingsBubblesMode, color: appearance.presentation.colors.text, type: .switchable(appearance.presentation.bubbled), viewType: .innerItem, action: {
+    #endif
+    #if OCTRON_EMBEDDED
+    let chatModeViewType: GeneralViewType = .singleItem
+    #else
+    let chatModeViewType: GeneralViewType = .innerItem
+    #endif
+    entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_theme_chat_mode, data: InputDataGeneralData(name: strings().appearanceSettingsBubblesMode, color: appearance.presentation.colors.text, type: .switchable(appearance.presentation.bubbled), viewType: chatModeViewType, action: {
         arguments.toggleBubbles(!appearance.presentation.bubbled)
     })))
     index += 1
     
    
+    #if !OCTRON_EMBEDDED
     if appearance.presentation.bubbled {
         entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_theme_wallpaper1, data: InputDataGeneralData(name: strings().generalSettingsChatBackground, color: appearance.presentation.colors.text, type: .next, viewType: .innerItem, action: arguments.selectChatBackground)))
         index += 1
@@ -493,6 +501,7 @@ private func appAppearanceEntries(appearance: Appearance, state: State, settings
     
     entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_name_color, data: InputDataGeneralData(name: strings().appearanceYourNameColor, color: appearance.presentation.colors.text, type: .imageContext(icon, ""), viewType: .lastItem, action: arguments.userNameColor)))
     index += 1
+    #endif
 
     
     
@@ -513,6 +522,7 @@ private func appAppearanceEntries(appearance: Appearance, state: State, settings
     entries.append(.sectionId(sectionId, type: .normal))
     sectionId += 1
 
+    #if !OCTRON_EMBEDDED
     entries.append(.desc(sectionId: sectionId, index: index, text: .plain(strings().appearanceSettingsAutoNightHeader), data: .init(viewType: .textTopItem)))
     index += 1
 
@@ -558,6 +568,7 @@ private func appAppearanceEntries(appearance: Appearance, state: State, settings
     
     #endif
     
+    #endif
     return entries
 }
 
@@ -786,7 +797,9 @@ func AppAppearanceViewController(context: AccountContext, focusOnItemTag: ThemeS
     
     
     
-    let controller = InputDataController(dataSignal: signal, title: strings().telegramAppearanceViewController, removeAfterDisappear:false, identifier: "app_appearance", customRightButton: { controller in
+    let controller = InputDataController(dataSignal: signal, title: strings().telegramAppearanceViewController, removeAfterDisappear:false, hasDone: false, identifier: "app_appearance")
+    #if !OCTRON_EMBEDDED
+    controller.customRightButton = { controller in
         
         let view = ImageBarView(controller: controller, theme.icons.chatActions)
         
@@ -836,7 +849,7 @@ func AppAppearanceViewController(context: AccountContext, focusOnItemTag: ThemeS
         view.button.set(image: theme.icons.chatActionsActive, for: .Highlight)
         return view
         
-    })
+    }
     
     controller.updateRightBarView = { view in
         if let view = view as? ImageBarView {
@@ -845,6 +858,7 @@ func AppAppearanceViewController(context: AccountContext, focusOnItemTag: ThemeS
         }
     }
     
+    #endif
     controller.didLoad = { controller, _ in
         if let focusOnItemTag = focusOnItemTag {
             controller.genericView.tableView.scroll(to: .center(id: focusOnItemTag.stableId, innerId: nil, animated: true, focus: .init(focus: true), inset: 0), inset: NSEdgeInsets())

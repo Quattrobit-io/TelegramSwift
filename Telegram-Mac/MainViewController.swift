@@ -528,6 +528,7 @@ class MainViewController: TelegramViewController {
                 context.window.sendKeyEvent(KeyboardKey.L, modifierFlags: [.command])
             }, itemImage: MenuAnimation.menu_lock.value))
         }
+        #if !OCTRON_EMBEDDED
         items.append(ContextMenuItem(theme.colors.isDark ? strings().fastSettingsDisableDarkMode : strings().fastSettingsEnableDarkMode, handler: {
             toggleDarkMode(context: context)
         }, itemImage: theme.colors.isDark ? MenuAnimation.menu_sun.value : MenuAnimation.menu_moon.value))
@@ -543,6 +544,7 @@ class MainViewController: TelegramViewController {
             
         }, itemImage: notifications.muteUntil < time ? MenuAnimation.menu_mute.value : MenuAnimation.menu_unmuted.value))
         
+        #endif
         if let event = NSApp.currentEvent {
             let menu = ContextMenu(betterInside: true)
             for item in items {

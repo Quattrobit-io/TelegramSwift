@@ -235,6 +235,7 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
     entries.append(.sectionId(sectionId, type: .normal))
     sectionId += 1
     
+    #if !OCTRON_EMBEDDED
     switch unAuthStatus {
     case .denied:
         
@@ -254,6 +255,7 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
         break
     }
     
+    #endif
     if accounts.count > 1 {
         entries.append(InputDataEntry.desc(sectionId: sectionId, index: index, text: .plain(strings().notificationSettingsShowNotificationsFrom), data: InputDataGeneralTextData(viewType: .textTopItem)))
         index += 1
@@ -271,6 +273,7 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
         
     }
     
+    #if !OCTRON_EMBEDDED
     entries.append(InputDataEntry.desc(sectionId: sectionId, index: index, text: .plain(strings().notificationSettingsToggleNotificationsHeader), data: InputDataGeneralTextData(viewType: .textTopItem)))
     index += 1
     
@@ -293,7 +296,11 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
     })))
     index += 1
     
-    entries.append(InputDataEntry.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_reset, data: InputDataGeneralData(name: strings().notificationSettingsResetNotifications, color: theme.colors.text, type: .none, viewType: .lastItem, action: {
+    let resetViewType: GeneralViewType = .lastItem
+    #else
+    let resetViewType: GeneralViewType = .singleItem
+    #endif
+    entries.append(InputDataEntry.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_reset, data: InputDataGeneralData(name: strings().notificationSettingsResetNotifications, color: theme.colors.text, type: .none, viewType: resetViewType, action: {
         arguments.resetAllNotifications()
     })))
     index += 1
@@ -380,6 +387,7 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
     sectionId += 1
 
     
+    #if !OCTRON_EMBEDDED
     entries.append(InputDataEntry.desc(sectionId: sectionId, index: index, text: .plain(strings().notificationSettingsSnoofHeader), data: InputDataGeneralTextData(viewType: .textTopItem)))
     index += 1
     
@@ -396,6 +404,7 @@ private func notificationEntries(state: State, settings:InAppNotificationSetting
     sectionId += 1
 
 
+    #endif
     return entries
 }
 
