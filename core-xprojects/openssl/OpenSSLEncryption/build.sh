@@ -17,15 +17,17 @@ OUT_DIR="${BUILD_DIR}build"
 
 
 NAME="openssl-1.1.1s";
+OPENSSL_COMMIT="b372b1f76450acdfed1e2301a39810146e28b02c"
 
 CROSS_TOP_MAC="$(xcode-select -p)/Platforms/MacOSX.platform"
 CROSS_SDK_MAC="MacOSX.sdk"
 
-git clone -b OpenSSL_1_1_1-stable https://github.com/openssl/openssl build/${NAME}
+git clone --no-checkout https://github.com/openssl/openssl build/${NAME}
 
 
 SOURCE_DIR="$OUT_DIR/${NAME}"
-
+git -C "$SOURCE_DIR" checkout --detach "$OPENSSL_COMMIT"
+test "$(git -C "$SOURCE_DIR" rev-parse HEAD)" = "$OPENSSL_COMMIT"
 
 
 export CROSS_COMPILE=`xcode-select --print-path`/Toolchains/XcodeDefault.xctoolchain/usr/bin/
