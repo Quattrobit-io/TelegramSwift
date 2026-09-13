@@ -112,6 +112,7 @@ enum InputOwnershipProof {
         checks["foreignPointerDoesNotBecomeNativeMidDrag"] = mouseDowns == 1 && drags == 1
 
         checkScrolling(window: window, nativePoint: nativePoint, foreignPoint: foreignPoint, checks: &checks)
+        checkSidebarInput(host: host, window: window, root: root, chatField: nativeField, checks: &checks)
 
         _ = window.makeFirstResponder(nativeField)
         nativeField.isHidden = true
@@ -154,6 +155,43 @@ enum InputOwnershipProof {
         let data = try! JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         FileHandle.standardOutput.write(data)
         exit(checks.values.contains(false) ? 1 : 0)
+    }
+
+    private static func checkSidebarInput(
+        host: OctronTelegramHost, window: Window, root: NSView,
+        chatField: NSTextField, checks: inout [String: Bool]
+    ) {
+        let sidebar = host.sidebarView
+        let frame = NSRect(x: 400, y: 260, width: 180, height: 140)
+        sidebar.frame = frame
+        root.addSubview(sidebar)
+        let field = NSTextField(frame: NSRect(x: 12, y: 12, width: 156, height: 28))
+        field.stringValue = "Retained sidebar draft"
+        sidebar.addSubview(field)
+        let point = field.convert(NSPoint(x: 10, y: 10), to: root)
+        let down = mouse(.leftMouseDown, point: root.convert(point, to: nil), window: window)
+        _ = window.makeFirstResponder(field)
+        checks["sidebarInitiallyReceivesFocusAndPointer"] = field.currentEditor() != nil
+            && sidebar.hitTest(point) != nil && window.handlerScope?(down) == true
+        host.setSidebarInputEnabled(false)
+        checks["disablingSidebarRevokesSharedEditor"] = field.currentEditor() == nil
+        checks["disabledSidebarRejectsDirectHitAndNativePointer"] = sidebar.hitTest(point) == nil
+            && window.handlerScope?(down) == false
+        _ = window.makeFirstResponder(chatField)
+        let chatEditor = chatField.currentEditor()
+        checks["disabledSidebarPreservesVisibleChatFocus"] = chatEditor != nil
+            && window.handlerScope?(nil) == true && window.handlersEnabled
+        _ = window.makeFirstResponder(field)
+        checks["disabledSidebarCannotReacquireFocus"] = field.currentEditor() == nil
+            && chatField.currentEditor() === chatEditor && window.firstResponder === chatEditor
+        checks["disablingSidebarPreservesPaintAndIdentity"] = host.sidebarView === sidebar
+            && sidebar.superview === root && sidebar.frame == frame && !sidebar.isHidden
+            && sidebar.alphaValue == 1 && field.superview === sidebar
+        host.setSidebarInputEnabled(true)
+        _ = window.makeFirstResponder(field)
+        checks["reenabledSidebarRestoresInputAndDraft"] = field.currentEditor() != nil
+            && field.stringValue == "Retained sidebar draft" && sidebar.hitTest(point) != nil
+        _ = window.makeFirstResponder(chatField)
     }
 
     private static func checkScrolling(

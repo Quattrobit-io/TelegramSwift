@@ -58,7 +58,7 @@ public final class OctronTelegramHost: NSObject {
         }
         window.firstResponderFilter = { [weak self] responder in
             guard let self else { return previousFilter(responder) }
-            if let view = self.ownedView(for: responder), !self.active || view.isHiddenOrHasHiddenAncestor {
+            if let view = self.ownedView(for: responder), !self.active || !self.acceptsInput(in: view) {
                 return self.window.firstResponder
             }
             return previousFilter(responder)
@@ -76,6 +76,15 @@ public final class OctronTelegramHost: NSObject {
         }
         application?.setEmbeddedActive(active)
         if !active && ownedView(for: window.firstResponder) != nil {
+            window.makeFirstResponder(nil)
+        }
+    }
+
+    @objc public func setSidebarInputEnabled(_ enabled: Bool) {
+        guard sidebar.inputEnabled != enabled else { return }
+        sidebar.inputEnabled = enabled
+        if !enabled, let view = ownedView(for: window.firstResponder),
+           view === sidebar || view.isDescendant(of: sidebar) {
             window.makeFirstResponder(nil)
         }
     }
@@ -149,7 +158,7 @@ public final class OctronTelegramHost: NSObject {
         guard active, window.attachedSheet == nil,
               NSApp.modalWindow == nil || NSApp.modalWindow === window else { return false }
         let responder = window.firstResponder
-        let ownsFocus = ownedView(for: responder).map { !$0.isHiddenOrHasHiddenAncestor }
+        let ownsFocus = ownedView(for: responder).map { acceptsInput(in: $0) }
             ?? (responder == nil || responder === window || responder === window.contentView)
         guard let event else { return ownsFocus }
         guard event.window === window else { return false }
@@ -191,7 +200,12 @@ public final class OctronTelegramHost: NSObject {
         let root = content.superview ?? content
         let point = root.superview?.convert(location, from: nil) ?? location
         guard let view = ownedView(for: root.hitTest(point)) else { return false }
-        return !view.isHiddenOrHasHiddenAncestor
+        return acceptsInput(in: view)
+    }
+
+    private func acceptsInput(in view: NSView) -> Bool {
+        !view.isHiddenOrHasHiddenAncestor
+            && (sidebar.inputEnabled || !(view === sidebar || view.isDescendant(of: sidebar)))
     }
 
     func mount(sidebar: NSView?, chat: NSView?) {
@@ -202,6 +216,7 @@ public final class OctronTelegramHost: NSObject {
 
 private final class OctronTelegramContainer: View {
     private weak var mountedView: NSView?
+    var inputEnabled = true
     var minimumWidth: CGFloat = 0
     var contentHidden = false {
         didSet { mountedView?.isHidden = contentHidden }
@@ -226,5 +241,9 @@ private final class OctronTelegramContainer: View {
     override func layout() {
         super.layout()
         mountedView?.frame = contentFrame
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        inputEnabled ? super.hitTest(point) : nil
     }
 }

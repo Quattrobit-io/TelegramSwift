@@ -10,6 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) NSView *chatView;
 - (BOOL)startAndReturnError:(NSError * _Nullable *)error;
 - (void)setActive:(BOOL)active;
+- (void)setSidebarInputEnabled:(BOOL)enabled;
 - (void)applyThemeWithBackground:(NSColor *)background
               sidebarBackground:(NSColor *)sidebarBackground
                     textPrimary:(NSColor *)textPrimary
