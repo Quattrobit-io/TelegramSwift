@@ -8099,6 +8099,13 @@ class ChatController: EditableViewController<ChatControllerView>, Notifable, Tab
     private var checkMessageExists: Bool = true
     private var checkPremiumStickers: Bool = true
     override func updateBackgroundColor(_ backgroundMode: TableBackgroundMode) {
+        if usesOctronBackdrop {
+            super.updateBackgroundColor(.plain)
+            backgroundColor = .clear
+            genericView.updateBackground(theme.controllerBackgroundMode, navigationView: nil, isStandalone: false)
+            genericView.layer?.isOpaque = false
+            return
+        }
         super.updateBackgroundColor(backgroundMode)
         genericView.updateBackground(backgroundMode, navigationView: self.navigationController?.view, isStandalone: self.navigationController?.modal != nil)
     }

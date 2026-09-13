@@ -313,6 +313,10 @@ class MainViewController: TelegramViewController {
     
     override func loadView() {
         
+        #if OCTRON_EMBEDDED
+        navigation.drawsBackground = false
+        contacts.drawsBackground = false
+        #endif
         navigation.hasBarRightBorder = true
         navigation.hasBarLeftBorder = true
         

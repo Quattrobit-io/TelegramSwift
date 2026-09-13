@@ -202,7 +202,7 @@ class LeftSidebarFolderItem: TableRowItem {
         let result = super.makeSize(width, oldWidth: oldWidth)
         let available = Thread.isMainThread ? table?.frame.width : nil
         horizontalExtent = max(leftSidebarEditSize, min(leftSidebarWidth,
-            (available ?? max(0, initialSize.width - leftSidebarEditSize)) / CGFloat(max(1, folderCount))))
+            max(0, (available ?? initialSize.width) - leftSidebarEditSize) / CGFloat(max(1, folderCount))))
         nameLayout.measure(width: height - 10)
         return result
     }
@@ -323,3 +323,52 @@ private final class LeftSidebarFolderView : LeftSidebarFolderRowView {
         fatalError("init(coder:) has not been implemented")
     }
 }
+
+#if OCTRON_EMBEDDED
+final class LeftSidebarEditItem: TableRowItem {
+    static let id: Int32 = -3
+    let action: () -> Void
+
+    init(_ initialSize: NSSize, action: @escaping () -> Void) {
+        self.action = action
+        super.init(initialSize)
+    }
+
+    override var stableId: AnyHashable { Self.id }
+    override var width: CGFloat { leftSidebarWidth }
+    override var height: CGFloat { leftSidebarEditSize }
+    override func viewClass() -> AnyClass { LeftSidebarEditView.self }
+}
+
+private final class LeftSidebarEditView: HorizontalRowView {
+    private let button = ImageButton()
+
+    required init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(button)
+        button.autohighlight = false
+        button.scaleOnClick = false
+        button.set(handler: { [weak self] _ in
+            (self?.item as? LeftSidebarEditItem)?.action()
+        }, for: .Click)
+    }
+
+    override var backdorColor: NSColor { .clear }
+
+    override func set(item: TableRowItem, animated: Bool) {
+        super.set(item: item, animated: animated)
+        button.set(image: theme.icons.folders_sidebar_edit, for: .Normal)
+        button.set(image: theme.icons.folders_sidebar_edit_active, for: .Highlight)
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        button.frame = container.bounds
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+#endif

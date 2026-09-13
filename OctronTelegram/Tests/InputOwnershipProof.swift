@@ -148,6 +148,7 @@ enum InputOwnershipProof {
             ]
         } ?? false
         checks["retainedNativeViews"] = host.chatView.superview === root
+        checkNavigationBackground(window: window, checks: &checks)
         checks["neverDisplayedOrActivated"] = !window.isVisible && !app.isActive
         window.close()
         checks["foregroundUnchanged"] = NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground
@@ -155,6 +156,44 @@ enum InputOwnershipProof {
         let data = try! JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         FileHandle.standardOutput.write(data)
         exit(checks.values.contains(false) ? 1 : 0)
+    }
+
+    private static func checkNavigationBackground(window: Window, checks: inout [String: Bool]) {
+        let resources = Bundle(for: OctronTelegramHost.self)
+        for name in ["Icon_SearchField", "Icon_SearchClear", "Icon_Quote", "Icon_Quote_Collapse", "Icon_Quote_Expand", "Icon_NavigationBack"] {
+            guard let image = resources.image(forResource: name) else {
+                checks["navigationResource_" + name] = false
+                return
+            }
+            image.setName(name)
+        }
+        let page = GenericViewController<View>()
+        let navigation = NavigationViewController(page, window)
+        navigation.applyAppearOnLoad = false
+        navigation.drawsBackground = false
+        _ = navigation.view
+        checks["embeddedNavigationStartsTransparent"] = navigation.backgroundColor.alphaComponent == 0
+            && navigation.navigationBar.backgroundColor.alphaComponent == 0
+            && navigation.navigationBar.layer?.isOpaque == false
+        for _ in 0..<3 {
+            navigation.backgroundColor = .black
+            navigation.updateLocalizationAndTheme(theme: presentation)
+            page.leftBarView.updateLocalizationAndTheme(theme: presentation)
+            page.centerBarView.updateLocalizationAndTheme(theme: presentation)
+            page.rightBarView.updateLocalizationAndTheme(theme: presentation)
+        }
+        checks["embeddedNavigationSurvivesThemeRepaint"] = navigation.backgroundColor.alphaComponent == 0
+            && navigation.view.layer?.isOpaque == false
+            && navigation.navigationBar.backgroundColor.alphaComponent == 0
+        checks["embeddedNavigationHeadersRemainTransparent"] = [page.leftBarView, page.centerBarView, page.rightBarView]
+            .allSatisfy { $0.backgroundColor.alphaComponent == 0 && $0.layer?.isOpaque == false }
+        checks["embeddedHeaderPreservesForeground"] = page.barPresentation.foregroundColor
+            == navigationButtonStyle.foregroundColor
+        navigation.drawsBackground = true
+        page.centerBarView.updateLocalizationAndTheme(theme: presentation)
+        checks["ordinaryNavigationKeepsItsMaterial"] = navigation.backgroundColor == presentation.colors.background
+            && navigation.navigationBar.backgroundColor == presentation.colors.background
+            && page.centerBarView.backgroundColor == presentation.colors.background
     }
 
     private static func checkSidebarInput(

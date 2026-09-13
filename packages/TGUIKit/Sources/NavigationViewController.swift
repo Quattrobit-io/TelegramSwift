@@ -305,6 +305,15 @@ final class NavigationShadowView : View {
 
 open class NavigationViewController: ViewController, CALayerDelegate,CAAnimationDelegate {
 
+    public var drawsBackground = true {
+        didSet {
+            if oldValue != drawsBackground, isLoaded() {
+                backgroundColor = presentation.colors.background
+                updateLocalizationAndTheme(theme: presentation)
+            }
+        }
+    }
+
     public var applyAppearOnLoad: Bool = true
     public var canAddControllers: Bool = true
     public private(set) var modalAction:NavigationModalAction?
@@ -454,6 +463,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
         super.viewDidLoad()
         
         
+        if !drawsBackground { backgroundColor = .clear }
         containerView.frame = bounds
         //self.view.autoresizesSubviews = true
         //containerView.autoresizesSubviews = true
@@ -576,8 +586,11 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
     
     public override var backgroundColor: NSColor {
         set {
-            self.view.background = newValue
-            navigationBar.backgroundColor = newValue
+            let color: NSColor = drawsBackground ? newValue : .clear
+            self.view.background = color
+            self.view.layer?.isOpaque = color.alphaComponent == 1
+            navigationBar.backgroundColor = color
+            navigationBar.layer?.isOpaque = color.alphaComponent == 1
         }
         get {
             return self.view.background
@@ -986,6 +999,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
     
     open override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
+        if !drawsBackground { backgroundColor = .clear }
         navigationBar.updateLocalizationAndTheme(theme: theme)
         if let callHeader = callHeader, callHeader.needShown {
             callHeader.view.updateLocalizationAndTheme(theme: theme)

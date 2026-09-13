@@ -58,6 +58,7 @@ open class BarView: Control {
             return
         }
         backgroundColor = controller.barPresentation.backgroundColor
+        layer?.isOpaque = backgroundColor.alphaComponent == 1
     }
     
     public override var style: ControlStyle {

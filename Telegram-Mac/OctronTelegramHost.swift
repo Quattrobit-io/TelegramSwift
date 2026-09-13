@@ -30,6 +30,7 @@ public final class OctronTelegramHost: NSObject {
         self.window = window as! Window
         super.init()
         sidebar.layer?.isOpaque = false
+        chat.layer?.isOpaque = false
         chat.minimumWidth = 380
         attachInput()
     }

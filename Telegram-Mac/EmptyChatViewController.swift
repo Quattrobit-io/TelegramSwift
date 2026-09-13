@@ -166,7 +166,7 @@ class EmptyChatViewController: TelegramGenericViewController<EmptyChatView> {
     override func updateBackgroundColor(_ backgroundMode: TableBackgroundMode) {
         super.updateBackgroundColor(backgroundMode)
         if appDelegate?.embedded != nil {
-            // Embedded navigation already paints the host's chat background.
+            // The Octron workspace owns the embedded chat backdrop.
             self.backgroundColor = .clear
             return
         }

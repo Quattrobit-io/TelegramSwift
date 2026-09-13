@@ -647,6 +647,10 @@ class InputDataController: GenericViewController<InputDataView> {
         super.updateLocalizationAndTheme(theme: theme)
 
         self.genericView.updateLocalizationAndTheme(theme: theme)
+        if usesOctronBackdrop {
+            genericView.background = .clear
+            genericView.layer?.isOpaque = false
+        }
         requestUpdateBackBar()
         requestUpdateCenterBar()
         requestUpdateRightBar()
@@ -825,7 +829,10 @@ class InputDataController: GenericViewController<InputDataView> {
             self?.willMove?(window)
         }
         
-        genericView.tableView.getBackgroundColor = self.getBackgroundColor
+        genericView.tableView.getBackgroundColor = { [weak self] in
+            guard let self else { return .clear }
+            return self.usesOctronBackdrop ? .clear : self.getBackgroundColor()
+        }
         
         let makeFirstFast = self.makeFirstFast
         

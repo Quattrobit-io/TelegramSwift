@@ -258,7 +258,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     func applyNewTheme() {
         rightController.backgroundColor = theme.colors.background
-        rightController.backgroundMode = theme.controllerBackgroundMode
+        rightController.backgroundMode = embedded ? .plain : theme.controllerBackgroundMode
         view.updateLocalizationAndTheme(theme: theme)
     }
     
@@ -294,6 +294,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         
         
         rightController = ExMajorNavigationController(context, ChatController.self, emptyController);
+        rightController.drawsBackground = !embedded
         rightController.set(header: NavigationHeader(44, initializer: { header, contextObject, view -> (NavigationHeaderView, CGFloat) in
             let newView = view ?? InlineAudioPlayerView(header)
             newView.update(with: contextObject)

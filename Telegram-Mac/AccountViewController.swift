@@ -726,7 +726,13 @@ final class AccountControllerView : Control {
         edit.set(text: strings().navigationEdit, for: .Normal)
         edit.set(color: theme.colors.accent, for: .Normal)
         edit.scaleOnClick = true
+        #if OCTRON_EMBEDDED
+        self.backgroundColor = .clear
+        self.layer?.isOpaque = false
+        tableView.getBackgroundColor = { .clear }
+        #else
         self.backgroundColor = theme.colors.background
+        #endif
         
         let layout = TextViewLayout(.initialize(string: strings().accountViewControllerTitle, color: theme.colors.text, font: .medium(.title)), maximumNumberOfLines: 1)
         layout.measure(width: .greatestFiniteMagnitude)

@@ -542,7 +542,11 @@ open class ViewController : NSObject {
     }
     
     open var barPresentation: ControlStyle {
-        return navigationButtonStyle
+        var style = navigationButtonStyle
+        if navigationController?.drawsBackground == false {
+            style.backgroundColor = .clear
+        }
+        return style
     }
     
     var widthOnDisappear: CGFloat? = nil

@@ -13,6 +13,12 @@ import Postbox
 import SwiftSignalKit
 import TGUIKit
 
+extension ViewController {
+    var usesOctronBackdrop: Bool {
+        return navigationController?.drawsBackground == false && modal == nil
+    }
+}
+
 class TelegramGenericViewController<T>: GenericViewController<T> where T:NSView {
 
     let context:AccountContext
@@ -34,6 +40,10 @@ class TelegramGenericViewController<T>: GenericViewController<T> where T:NSView 
         super.updateLocalizationAndTheme(theme: theme)
         
         (self.genericView as? AppearanceViewProtocol)?.updateLocalizationAndTheme(theme: theme)
+        if usesOctronBackdrop {
+            genericView.background = .clear
+            genericView.layer?.isOpaque = false
+        }
         requestUpdateBackBar()
         requestUpdateCenterBar()
         requestUpdateRightBar()
@@ -64,8 +74,8 @@ class TableViewController: TelegramGenericViewController<TableView>, TableViewDe
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        genericView.getBackgroundColor = {
-           return theme.colors.listBackground
+        genericView.getBackgroundColor = { [weak self] in
+           return self?.usesOctronBackdrop == true ? .clear : theme.colors.listBackground
         }
     }
     
