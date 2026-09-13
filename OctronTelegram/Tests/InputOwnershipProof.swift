@@ -162,7 +162,7 @@ enum InputOwnershipProof {
         chatField: NSTextField, checks: inout [String: Bool]
     ) {
         let sidebar = host.sidebarView
-        let frame = NSRect(x: 400, y: 260, width: 180, height: 140)
+        let frame = NSRect(x: 400, y: 260, width: 180, height: 100)
         sidebar.frame = frame
         root.addSubview(sidebar)
         let field = NSTextField(frame: NSRect(x: 12, y: 12, width: 156, height: 28))
