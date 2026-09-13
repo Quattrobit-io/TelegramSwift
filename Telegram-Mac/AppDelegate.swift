@@ -425,8 +425,8 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         
 
         let v = embedded?.chatView as? View ?? View()
-        v.flip = false
         if embedded == nil {
+            v.flip = false
             window.contentView = v
             window.contentView?.autoresizingMask = [.width, .height]
             window.contentView?.autoresizesSubviews = true
