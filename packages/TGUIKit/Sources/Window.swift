@@ -307,6 +307,9 @@ public enum KeyHandlerResult {
 
 open class Window: NSWindow {
     public var name: String = "TGUIKit.Window"
+    public var handlersEnabled = true
+    public var handlerScope: ((NSEvent?) -> Bool)?
+    public weak var modalContainer: NSView?
     private var keyHandlers:[KeyboardKey:[KeyHandler]] = [:]
     private var swipeHandlers:[SwipeIdentifier: SwipeHandler] = [:]
     private var swipeState:[SwipeIdentifier: SwipeDirection] = [:]
@@ -536,6 +539,7 @@ open class Window: NSWindow {
     
     
     public func applyResponderIfNeeded(_ event: NSEvent? = nil) ->Void {
+        guard handlersEnabled, handlerScope?(event) != false else { return }
         let sorted = responders.sorted(by: >)
         
         if let event = event, event.modifierFlags.contains(.option) || event.modifierFlags.contains(.command)
@@ -580,7 +584,8 @@ open class Window: NSWindow {
 
     
     open override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        return self.isPushToTalkEquaivalent?(event) ?? super.performKeyEquivalent(with: event)
+        let handlesEvent = handlersEnabled && handlerScope?(event) != false
+        return (handlesEvent ? self.isPushToTalkEquaivalent?(event) : nil) ?? super.performKeyEquivalent(with: event)
     }
     
     open override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
@@ -763,6 +768,10 @@ open class Window: NSWindow {
     
     
     open override func sendEvent(_ event: NSEvent) {
+        guard handlersEnabled, handlerScope?(event) != false else {
+            super.sendEvent(event)
+            return
+        }
         
         //        let testEvent = NSEvent.EventType.init(rawValue: 36)!
         //

@@ -1661,7 +1661,7 @@ class ChatListController : PeersListController {
         
         subContext?.load(force: true)
         
-        let isLocked = (NSApp.delegate as? AppDelegate)?.passlock ?? .single(false)
+        let isLocked = appDelegate?.passlock ?? .single(false)
         
         
         

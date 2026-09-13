@@ -102,6 +102,7 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
         screenLocked.set(.single(_lockedValue))
     }
     
+    private let lifetimeDisposables = DisposableSet()
     private let disposableDict: DisposableDict<AccountRecordId> = DisposableDict()
     let accountManager: AccountManager<TelegramAccountManagerTypes>
     var resignTimestamp:Int32? = nil
@@ -112,7 +113,7 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
     
     private var lockers:[PasscodeLockController] = []
     
-    init(activeAccounts: Signal<(primary: Account?, accounts: [(AccountRecordId, Account)]), NoError>, appEncryption: AppEncryptionParameters, accountManager: AccountManager<TelegramAccountManagerTypes>, bindings: SharedNotificationBindings) {
+    init(activeAccounts: Signal<(primary: Account?, accounts: [(AccountRecordId, Account)]), NoError>, appEncryption: AppEncryptionParameters, accountManager: AccountManager<TelegramAccountManagerTypes>, bindings: SharedNotificationBindings, registerNotifications: Bool = true) {
         self.accountManager = accountManager
         self.bindings = bindings
         self.appEncryption = appEncryption
@@ -120,11 +121,10 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
         
         super.init()
         
-        UNUserNotifications.initialize(manager: self)
-
-        UNUserNotifications.current?.authorize(completion: { value in
-            
-        })
+        if registerNotifications {
+            UNUserNotifications.initialize(manager: self)
+            UNUserNotifications.current?.authorize(completion: { _ in })
+        }
         
 //        NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeKey), name: NSWindow.didBecomeKeyNotification, object: window)
 //        NotificationCenter.default.addObserver(self, selector: #selector(windowDidResignKey), name: NSWindow.didResignKeyNotification, object: window)
@@ -134,7 +134,7 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenIsUnlocked), name: NSNotification.Name(rawValue: "com.apple.screenIsUnlocked"), object: nil)
 
         
-        _ = (_passlock.get() |> mapToSignal { show in additionalSettings(accountManager: accountManager) |> take(1) |> map { (show, $0) }} |> deliverOnMainQueue |> mapToSignal { show, settings -> Signal<Bool, NoError> in
+        lifetimeDisposables.add((_passlock.get() |> mapToSignal { show in additionalSettings(accountManager: accountManager) |> take(1) |> map { (show, $0) }} |> deliverOnMainQueue |> mapToSignal { show, settings -> Signal<Bool, NoError> in
             if show {
                 closeInstantView()
                 closeGalleryViewer(false)
@@ -166,6 +166,7 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
             return .never()
         } |> deliverOnMainQueue).start(next: { lock in
                 
+                appDelegate?.embedded?.setLocked(lock)
                 appDelegate?.enumerateAccountContexts({ context in
                     for subview in context.window.contentView!.subviews {
                         if let subview = subview as? SplitView {
@@ -183,14 +184,16 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
                 self.updateLocked { previous -> LockNotificationsData in
                     return previous.withUpdatedPasscodeLock(lock)
                 }
-            })
+            }))
         
-        _ = (activeAccounts |> deliverOnMainQueue).start(next: { accounts in
-            for account in accounts.accounts {
-                self.startNotifyListener(with: account.1, primary: account.0 == accounts.primary?.id)
+        lifetimeDisposables.add((activeAccounts |> deliverOnMainQueue).start(next: { accounts in
+            if registerNotifications {
+                for account in accounts.accounts {
+                    self.startNotifyListener(with: account.1, primary: account.0 == accounts.primary?.id)
+                }
             }
             self.activeAccounts = accounts
-        })
+        }))
         
         
         let passlock = Signal<Void, NoError>.single(Void()) |> delay(10, queue: Queue.concurrentDefaultQueue()) |> restart |> mapToSignal { () -> Signal<Int32?, NoError> in
@@ -224,6 +227,17 @@ final class SharedNotificationManager : NSObject, NSUserNotificationCenterDelega
         
     }
     
+    func stop() {
+        lifetimeDisposables.dispose()
+        disposableDict.dispose()
+        _passlock.set(.never())
+        lockers.forEach { $0.close() }
+        lockers.removeAll()
+        DistributedNotificationCenter.default().removeObserver(self)
+        activeAccounts = (primary: nil, accounts: [])
+        didUpdateLocked = nil
+    }
+
     func updatePasslock(_ signal: Signal<Bool, NoError>) {
         _passlock.set(signal)
     }

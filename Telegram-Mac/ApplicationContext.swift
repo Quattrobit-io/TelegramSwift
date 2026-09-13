@@ -2,6 +2,7 @@ import Foundation
 import WebKit
 import UserNotifications
 import TGUIKit
+import KeyboardKey
 import SwiftSignalKit
 import Postbox
 import TelegramCore
@@ -84,24 +85,28 @@ final class UnauthorizedApplicationContext {
     
     private let updatesDisposable: DisposableSet = DisposableSet()
     private let authController: AuthController
+    private var embeddedActive = false
     
     var rootView: NSView {
         return rootController.view
     }
     
     
-    init(window:Window, sharedContext: SharedAccountContext, account: UnauthorizedAccount, otherAccountPhoneNumbers: ((String, AccountRecordId, Bool)?, [(String, AccountRecordId, Bool)])) {
+    init(window:Window, sharedContext: SharedAccountContext, account: UnauthorizedAccount, otherAccountPhoneNumbers: ((String, AccountRecordId, Bool)?, [(String, AccountRecordId, Bool)]), embedded: Bool = false) {
 
         
+        updatesDisposable.add(managedAppConfigurationUpdates(accountManager: sharedContext.accountManager, network: account.network).start())
+        if !embedded {
         window.maxSize = NSMakeSize(.greatestFiniteMagnitude, .greatestFiniteMagnitude)
         window.minSize = NSMakeSize(380, 550)
         
-        updatesDisposable.add(managedAppConfigurationUpdates(accountManager: sharedContext.accountManager, network: account.network).start())
+
                         
         
         if window.frame.height < window.minSize.height || window.frame.width < window.minSize.width {
             window.setFrame(NSMakeRect(window.frame.minX, window.frame.minY, window.minSize.width, window.minSize.height), display: true)
             window.center()
+        }
         }
         self.authController = AuthController(account, sharedContext: sharedContext, otherAccountPhoneNumbers: otherAccountPhoneNumbers)
         self.account = account
@@ -117,6 +122,18 @@ final class UnauthorizedApplicationContext {
         
     }
     
+    func setEmbeddedActive(_ active: Bool) {
+        guard embeddedActive != active else { return }
+        embeddedActive = active
+        if active {
+            rootController.viewWillAppear(false)
+            rootController.viewDidAppear(false)
+        } else {
+            rootController.viewWillDisappear(false)
+            rootController.viewDidDisappear(false)
+        }
+    }
+
     func applyExternalLoginCode(_ code: String) {
         authController.applyExternalLoginCode(code)
     }
@@ -143,6 +160,14 @@ private final class ApplicationContainerView: View {
     fileprivate let splitView: SplitView
     
     fileprivate private(set) var leftSideView: NSView?
+    private var embeddedContent: NSView?
+
+    func installEmbeddedContent(_ content: NSView) {
+        splitView.removeFromSuperview()
+        embeddedContent = content
+        addSubview(content)
+        needsLayout = true
+    }
     
     required init(frame frameRect: NSRect) {
         splitView = SplitView(frame: NSMakeRect(0, 0, frameRect.width, frameRect.height))
@@ -174,11 +199,12 @@ private final class ApplicationContainerView: View {
     override func layout() {
         super.layout()
         
+        let content = embeddedContent ?? splitView
         if let leftSideView = leftSideView {
             leftSideView.frame = NSMakeRect(0, 0, leftSidebarWidth, frame.height)
-            splitView.frame = NSMakeRect(leftSideView.frame.maxX, 0, frame.width - leftSideView.frame.maxX, frame.height)
+            content.frame = NSMakeRect(leftSideView.frame.maxX, 0, max(0, frame.width - leftSideView.frame.maxX), frame.height)
         } else {
-            splitView.frame = bounds
+            content.frame = bounds
         }
         
     }
@@ -193,6 +219,10 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     let context: AccountContext
     private let window:Window
+    private let embedded: Bool
+    private var embeddedActive = false
+    var sidebarView: NSView { view }
+    var chatView: NSView { rightController.view }
     private let view:ApplicationContainerView
     private let leftController:MainViewController
     private let rightController:MajorNavigationController
@@ -226,13 +256,15 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     private var launchAction: ApplicationContextLaunchAction?
     
-    init(window: Window, context: AccountContext, launchSettings: LaunchSettings, callSession: PCallSession?, groupCallContext: GroupCallContext?, inlinePlayerContext: InlineAudioPlayerView.ContextObject?, folders: ChatListFolders?) {
+    init(window: Window, context: AccountContext, launchSettings: LaunchSettings, callSession: PCallSession?, groupCallContext: GroupCallContext?, inlinePlayerContext: InlineAudioPlayerView.ContextObject?, folders: ChatListFolders?, embedded: Bool = false) {
         
         self.context = context
+        self.embedded = embedded
         emptyController = EmptyChatViewController(context)
         
         self.window = window
         
+        if !embedded {
         if !window.initFromSaver {
             window.setFrame(NSMakeRect(0, 0, 800, 650), display: true)
             window.center()
@@ -242,6 +274,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         window.minSize = NSMakeSize(380, 550)
 
         
+        }
         context.account.importableContacts.set(.single([:]))
         
         self.view = ApplicationContainerView(frame: window.contentView!.bounds)
@@ -281,7 +314,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
             return (newView, 35 + 18)
         }))
         
-        window.rootViewController = rightController
+        if !embedded { window.rootViewController = rightController }
         
         leftController = MainViewController(context);
 
@@ -340,9 +373,11 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
             }
         }))
         
-        closeAllPopovers(for: context.window)
-        closeAllModals(window: context.window)
-        AppMenu.closeAll()
+        if !embedded {
+            closeAllPopovers(for: context.window)
+            closeAllModals(window: context.window)
+            AppMenu.closeAll()
+        }
       
        // var forceNotice:Bool = false
         if FastSettings.isMinimisize {
@@ -352,8 +387,15 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
             self.view.splitView.mustMinimisize = false
         }
         
-        self.view.splitView.delegate = self;
-        self.view.splitView.update(false)
+        if embedded {
+            context.layout = .dual
+            leftController._window = window
+            self.view.installEmbeddedContent(leftController.view)
+            rightController.empty = emptyController
+        } else {
+            self.view.splitView.delegate = self
+            self.view.splitView.update(false)
+        }
         
 
         let accountId = context.account.id
@@ -391,219 +433,8 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         
 
         
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.rightController.push(ChatController(context: context, chatLocation: .peer(context.peerId)))
-            return .invoked
-        }, with: self, for: .Zero, priority: .low, modifierFlags: [.command])
-        
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(0, false)
-            return .invoked
-        }, with: self, for: .One, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(1, false)
-            return .invoked
-            }, with: self, for: .Two, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(2, false)
-            return .invoked
-        }, with: self, for: .Three, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(3, false)
-            return .invoked
-        }, with: self, for: .Four, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(4, false)
-            return .invoked
-        }, with: self, for: .Five, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(5, false)
-            return .invoked
-        }, with: self, for: .Six, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(6, false)
-            return .invoked
-        }, with: self, for: .Seven, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(7, false)
-            return .invoked
-        }, with: self, for: .Eight, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(8, false)
-            return .invoked
-        }, with: self, for: .Nine, priority: .low, modifierFlags: [.command])
-        
-        window.set(handler: { _ -> KeyHandlerResult in
-            
-            
-            appDelegate?.sharedApplicationContextValue?.notificationManager.updatePasslock(context.sharedContext.accountManager.transaction { transaction -> Bool in
-                switch transaction.getAccessChallengeData() {
-                case .none:
-                    return false
-                default:
-                    return true
-                }
-            })
-            
-            let hasPasscode = context.sharedContext.accountManager.transaction { $0.getAccessChallengeData() != .none } |> deliverOnMainQueue
-            
-            _ = hasPasscode.startStandalone(next: { value in
-                if !value {
-                    context.bindings.rootNavigation().push(PasscodeSettingsViewController(context))
-                }
-            })
-                        
-            return .invoked
-        }, with: self, for: .L, priority: .supreme, modifierFlags: [.command])
+        if !embedded { installShortcuts() }
 
-        
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(0, true)
-            return .invoked
-        }, with: self, for: .One, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(1, true)
-            return .invoked
-        }, with: self, for: .Two, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(2, true)
-            return .invoked
-        }, with: self, for: .Three, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(3, true)
-            return .invoked
-        }, with: self, for: .Four, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(4, true)
-            return .invoked
-        }, with: self, for: .Five, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(5, true)
-            return .invoked
-        }, with: self, for: .Six, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(6, true)
-            return .invoked
-        }, with: self, for: .Seven, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(7, true)
-            return .invoked
-        }, with: self, for: .Eight, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(8, true)
-            return .invoked
-        }, with: self, for: .Nine, priority: .low, modifierFlags: [.command, .option])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.openChat(9, true)
-            return .invoked
-        }, with: self, for: .Minus, priority: .low, modifierFlags: [.command, .option])
-        
-    
-        
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(1, true)
-            return .invoked
-        }, with: self, for: .One, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(2, true)
-            return .invoked
-        }, with: self, for: .Two, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(3, true)
-            return .invoked
-        }, with: self, for: .Three, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(4, true)
-            return .invoked
-        }, with: self, for: .Four, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(5, true)
-            return .invoked
-        }, with: self, for: .Five, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(6, true)
-            return .invoked
-        }, with: self, for: .Six, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(7, true)
-            return .invoked
-        }, with: self, for: .Seven, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(8, true)
-            return .invoked
-        }, with: self, for: .Eight, priority: .low, modifierFlags: [.control])
-        
-        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-            self?.switchAccount(9, true)
-            return .invoked
-        }, with: self, for: .Nine, priority: .low, modifierFlags: [.control])
-              
-        
-        
-        #if DEBUG
-        
-        self.context.window.set(handler: { _ -> KeyHandlerResult in
-            
-           // showModal(with: AddTonBalanceController(context: context), for: window)
-            
-           // context.bindings.rootNavigation().push(SuggestPostController(context: context, peerId: context.peerId))
-
-            return .invoked
-        }, with: self, for: .T, priority: .supreme, modifierFlags: [.command])
-        
-        
-        self.context.window.set(handler: { _ -> KeyHandlerResult in
-                       
-            showModal(with: SuggetMessageModalController(context: context), for: window)
-
-           // showModal(with: GroupCallInviteLinkController(context: context, link: .init(link: "t.me/call/+kd93KsOsdd239k"), presentation: darkAppearance), for: window)
-
-            return .invoked
-        }, with: self, for: .Y, priority: .supreme, modifierFlags: [.command])
-        
-        
-        #endif
-        
-        
-//        window.set(handler: { [weak self] _ -> KeyHandlerResult in
-//            self?.leftController.focusSearch(animated: true)
-//            return .invoked
-//        }, with: self, for: .F, priority: .supreme, modifierFlags: [.command, .shift])
-        
-        window.set(handler: { _ -> KeyHandlerResult in
-            context.bindings.rootNavigation().push(ShortcutListController(context: context))
-            return .invoked
-        }, with: self, for: .Slash, priority: .low, modifierFlags: [.command])
-        
-      
-        
         appUpdateDisposable.set((context.account.stateManager.appUpdateInfo |> deliverOnMainQueue).start(next: { info in
             
         }))
@@ -644,7 +475,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         }
         
         
-        self.view.splitView.layout()
+        if !embedded { self.view.splitView.layout() }
 
         
    
@@ -776,7 +607,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
                     return
                 }
                 self.view.updateLeftSideView(self.leftSidebarController?.genericView, animated: animated)
-                if !self.window.isFullScreen, let screen = self.window.screen {
+                if !self.embedded, !self.window.isFullScreen, let screen = self.window.screen {
                     self.window.setFrame(NSMakeRect(max(0, self.window.frame.minX - enlarge), self.window.frame.minY, min(self.window.frame.width + enlarge, screen.frame.width), self.window.frame.height), display: true, animate: false)
                 }
                 self.updateMinMaxWindowSize(animated: animated)
@@ -790,6 +621,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     
     private func updateMinMaxWindowSize(animated: Bool) {
+        guard !embedded else { return }
         var width: CGFloat = 380
         if leftSidebarController != nil {
             width += leftSidebarWidth
@@ -824,6 +656,84 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         }
     }
     
+    func setEmbeddedActive(_ active: Bool) {
+        guard embedded, embeddedActive != active else { return }
+        embeddedActive = active
+        if active {
+            window.rootViewController = rightController
+            installShortcuts()
+            leftController.viewWillAppear(false)
+            rightController.viewWillAppear(false)
+            leftController.viewDidAppear(false)
+            rightController.viewDidAppear(false)
+        } else {
+            leftController.viewWillDisappear(false)
+            rightController.viewWillDisappear(false)
+            window.removeAllHandlers(for: self)
+            if window.rootViewController === rightController { window.rootViewController = nil }
+            leftController.viewDidDisappear(false)
+            rightController.viewDidDisappear(false)
+        }
+    }
+
+    private func installShortcuts() {
+        let context = self.context
+        let window = self.window
+        window.set(handler: { [weak self] _ -> KeyHandlerResult in
+            self?.rightController.push(ChatController(context: context, chatLocation: .peer(context.peerId)))
+            return .invoked
+        }, with: self, for: .Zero, priority: .low, modifierFlags: [.command])
+        let numericKeys: [KeyboardKey] = [.One, .Two, .Three, .Four, .Five, .Six, .Seven, .Eight, .Nine]
+        for (index, key) in numericKeys.enumerated() {
+            window.set(handler: { [weak self] _ in
+                self?.openChat(index, false)
+                return .invoked
+            }, with: self, for: key, priority: .low, modifierFlags: [.command])
+        }
+        window.set(handler: { _ -> KeyHandlerResult in
+            appDelegate?.sharedApplicationContextValue?.notificationManager.updatePasslock(context.sharedContext.accountManager.transaction { transaction -> Bool in
+                switch transaction.getAccessChallengeData() {
+                case .none:
+                    return false
+                default:
+                    return true
+                }
+            })
+            let hasPasscode = context.sharedContext.accountManager.transaction { $0.getAccessChallengeData() != .none } |> deliverOnMainQueue
+            _ = hasPasscode.startStandalone(next: { value in
+                if !value {
+                    context.bindings.rootNavigation().push(PasscodeSettingsViewController(context))
+                }
+            })
+            return .invoked
+        }, with: self, for: .L, priority: .supreme, modifierFlags: [.command])
+        for (index, key) in (numericKeys + [.Minus]).enumerated() {
+            window.set(handler: { [weak self] _ in
+                self?.openChat(index, true)
+                return .invoked
+            }, with: self, for: key, priority: .low, modifierFlags: [.command, .option])
+        }
+        for (index, key) in numericKeys.enumerated() {
+            window.set(handler: { [weak self] _ in
+                self?.switchAccount(index + 1, true)
+                return .invoked
+            }, with: self, for: key, priority: .low, modifierFlags: [.control])
+        }
+        #if DEBUG
+        self.context.window.set(handler: { _ -> KeyHandlerResult in
+            return .invoked
+        }, with: self, for: .T, priority: .supreme, modifierFlags: [.command])
+        self.context.window.set(handler: { _ -> KeyHandlerResult in
+            showModal(with: SuggetMessageModalController(context: context), for: window)
+            return .invoked
+        }, with: self, for: .Y, priority: .supreme, modifierFlags: [.command])
+        #endif
+        window.set(handler: { _ -> KeyHandlerResult in
+            context.bindings.rootNavigation().push(ShortcutListController(context: context))
+            return .invoked
+        }, with: self, for: .Slash, priority: .low, modifierFlags: [.command])
+    }
+
     private func openChat(_ index: Int, _ force: Bool = false) {
         leftController.openChat(index, force: force)
     }
@@ -862,6 +772,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
 
     
     func splitViewDidNeedSwapToLayout(state: SplitViewState) {
+        guard !embedded else { return }
         let previousState = self.view.splitView.state
         self.view.splitView.removeAllControllers()
         let w:CGFloat = FastSettings.leftColumnWidth

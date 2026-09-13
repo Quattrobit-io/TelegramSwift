@@ -14,10 +14,11 @@ import Postbox
 import SwiftSignalKit
 import KeyboardKey
 
-#if !APP_STORE
+#if !APP_STORE && !OCTRON_EMBEDDED
 import Sparkle
 #endif
 
+#if !OCTRON_EMBEDDED
 enum UpdateButtonState {
     case common
     case important
@@ -282,6 +283,8 @@ final class UpdateTabController: GenericViewController<UpdateTabView> {
 }
 
 
+#endif
+
 class MainViewController: TelegramViewController {
 
     let chatList: ChatListController
@@ -293,7 +296,9 @@ class MainViewController: TelegramViewController {
     private let layoutDisposable:MetaDisposable = MetaDisposable()
     private let badgeCountDisposable: MetaDisposable = MetaDisposable()
     private let tooltipDisposable = MetaDisposable()
+        #if !OCTRON_EMBEDDED
     private let updateController: UpdateTabController
+        #endif
     
     
     override func viewDidResized(_ size: NSSize) {
@@ -301,7 +306,9 @@ class MainViewController: TelegramViewController {
         tabController.view.frame = bounds
         self.navigation.frame = bounds
         self.contacts.frame = bounds
+        #if !OCTRON_EMBEDDED
         updateController.updateLayout(context.layout, parentSize: size, isChatList: true)
+        #endif
     }
     
     override func loadView() {
@@ -335,7 +342,9 @@ class MainViewController: TelegramViewController {
         
         if !context.isSupport {
         //#if !APP_STORE
+        #if !OCTRON_EMBEDDED
             addSubview(updateController.view)
+        #endif
         //#endif
         }
                 
@@ -364,7 +373,9 @@ class MainViewController: TelegramViewController {
             }
             self.tabController.hideTabView(state == .minimisize)
             //#if !APP_STORE
+        #if !OCTRON_EMBEDDED
             self.updateController.updateLayout(state, parentSize: self.frame.size, isChatList: true)
+        #endif
             //#endif
         }))
         
@@ -551,7 +562,9 @@ class MainViewController: TelegramViewController {
         
         let theme = (theme as! TelegramPresentationTheme)
         //#if !APP_STORE
+        #if !OCTRON_EMBEDDED
         updateController.updateLocalizationAndTheme(theme: theme)
+        #endif
         //#endif
         
         updateTabsIfNeeded()
@@ -771,7 +784,9 @@ class MainViewController: TelegramViewController {
         self.navigation = NavigationViewController(self.chatList, context.window)
         
         //#if !APP_STORE
+        #if !OCTRON_EMBEDDED
             updateController = UpdateTabController(context.sharedContext)
+        #endif
         //#endif
         super.init(context)
     }

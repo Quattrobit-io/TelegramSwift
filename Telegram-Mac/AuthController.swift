@@ -275,7 +275,7 @@ class AuthController : GenericViewController<AuthView> {
     }
         
     
-    #if !APP_STORE
+    #if !APP_STORE && !OCTRON_EMBEDDED
     private let updateController: UpdateTabController
     #endif
     
@@ -309,7 +309,7 @@ class AuthController : GenericViewController<AuthView> {
         self.word_c = .init(frame: NSMakeRect(0, 0, 380, 300))
 
         self.otherAccountPhoneNumbers = otherAccountPhoneNumbers
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
         updateController = UpdateTabController(sharedContext)
         #endif
         super.init()
@@ -398,7 +398,7 @@ class AuthController : GenericViewController<AuthView> {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
         genericView.updateView = updateController.view
         #endif
         
@@ -1195,7 +1195,7 @@ class AuthController : GenericViewController<AuthView> {
         code_entry_c.updateLocalizationAndTheme(theme: theme)
         password_entry_c.updateLocalizationAndTheme(theme: theme)
         
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
         updateController.updateLocalizationAndTheme(theme: theme)
         #endif
     }

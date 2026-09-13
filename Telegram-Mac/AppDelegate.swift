@@ -30,7 +30,7 @@ import TelegramMedia
 import RLottie
 import KeyboardKey
 
-#if BETA || DEBUG
+#if (BETA || DEBUG) && !OCTRON_EMBEDDED
 import Firebase
 import FirebaseCrashlytics
 #endif
@@ -88,7 +88,7 @@ import FirebaseCrashlytics
 final class CodeSyntax {
     private let syntaxer: Syntaxer
     private init() {
-        let pathFile = Bundle.main.path(forResource: "grammars", ofType: "dat")!
+        let pathFile = Bundle(for: AppDelegate.self).path(forResource: "grammars", ofType: "dat")!
         let data = try! Data(contentsOf: URL(fileURLWithPath: pathFile))
         self.syntaxer = Syntaxer(data)!
     }
@@ -208,12 +208,29 @@ extension RLottieBridge : R_LottieBridge {
 }
 
 
+#if !OCTRON_EMBEDDED
 @NSApplicationMain
+#endif
 class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterDelegate, NSWindowDelegate {
    
 
+    weak var embedded: OctronTelegramHost?
+    private let lifetimeDisposables = DisposableSet()
+    private var eventMonitor: Any?
+    private var crashTimer: Foundation.Timer?
+    private var observerTokens: [(NotificationCenter, NSObjectProtocol)] = []
+
+    private var applicationView: NSView? { embedded?.chatView ?? window?.contentView }
+
+    init(embedded: OctronTelegramHost) {
+        self.embedded = embedded
+        super.init()
+        self.window = embedded.window
+    }
+
     @IBOutlet weak var window: Window! {
         didSet {
+            guard embedded == nil else { return }
             window.delegate = self
             window.isOpaque = true
             let notInitial = window.initSaver()
@@ -338,7 +355,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         
-        _ = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in
             return BrowserStateContext.checkKey(event)
         })
         
@@ -364,11 +381,34 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
 //        titleBarAccessoryViewController.view.frame = NSMakeRect(0, 0, 0, 100) // Width not used.
 //        window.addTitlebarAccessoryViewController(titleBarAccessoryViewController)
         
+        do {
+            try ApiEnvironment.initialize()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Telegram configuration required"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+            return
+        }
+        launchApplication()
+    }
+
+    func launchEmbedded() {
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(applicationDidBecomeActive(_:)),
+                           name: NSApplication.didBecomeActiveNotification, object: NSApplication.shared)
+        center.addObserver(self, selector: #selector(applicationDidResignActive(_:)),
+                           name: NSApplication.didResignActiveNotification, object: NSApplication.shared)
+        center.addObserver(self, selector: #selector(applicationDidHide(_:)),
+                           name: NSApplication.didHideNotification, object: NSApplication.shared)
+        CodeSyntax.initialize()
+        launchApplication()
+    }
+
+    private func launchApplication() {
         appDelegate = self
-        ApiEnvironment.migrate()
-        
         initializeSelectManager()
-        startLottieCacheCleaner()
+        lifetimeDisposables.add(startLottieCacheCleaner())
         
         makeRLottie = { json, key in
             return RLottieBridge(json: json, key: key)
@@ -384,11 +424,13 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         TempBox.initializeShared(basePath: self.containerUrl, processType: "app", launchSpecificId: arc4random64())
         
 
-        let v = View()
+        let v = embedded?.chatView as? View ?? View()
         v.flip = false
-        window.contentView = v
-        window.contentView?.autoresizingMask = [.width, .height]
-        window.contentView?.autoresizesSubviews = true
+        if embedded == nil {
+            window.contentView = v
+            window.contentView?.autoresizingMask = [.width, .height]
+            window.contentView?.autoresizesSubviews = true
+        }
         
 
 //        delay(2.0, closure: {
@@ -404,6 +446,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
 //        ctxLayer.setNeedsDisplay()
 //        ctxLayer.display()
                 
+        if embedded == nil {
         let crashed = isCrashedLastTime(containerUrl.path)
         deinitCrashHandler(containerUrl.path)
         
@@ -420,6 +463,8 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         }
         
         saveIntermediateDate()
+
+        }
 
         uiLocalizationFunc = { key in
             return _NSLocalizedString(key)
@@ -460,7 +505,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         mw = window
         
         
-        #if BETA || DEBUG
+        #if (BETA || DEBUG) && !OCTRON_EMBEDDED
         FirebaseApp.configure()
         Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
         Crashlytics.crashlytics().sendUnsentReports()
@@ -468,7 +513,9 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         
         
         
-        Timer.scheduledTimer(timeInterval: 10, target: self, selector: #selector(saveIntermediateDate), userInfo: nil, repeats: true)
+        if embedded == nil {
+            crashTimer = Foundation.Timer.scheduledTimer(timeInterval: 10, target: self, selector: #selector(saveIntermediateDate), userInfo: nil, repeats: true)
+        }
 
         telegramUIDeclareEncodables()
         
@@ -495,7 +542,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         
                 
         let bundleId = Bundle.main.bundleIdentifier
-        if let bundleId = bundleId {
+        if let bundleId = bundleId, embedded == nil {
             LSSetDefaultHandlerForURLScheme("tg" as CFString, bundleId as CFString)
         }
         
@@ -506,6 +553,64 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
     }
     
     
+    private func updateEmbeddedContent() {
+        guard let embedded else { return }
+        if let authContextValue {
+            contextValue?.setEmbeddedActive(false)
+            embedded.mount(sidebar: nil, chat: authContextValue.rootView)
+        } else {
+            embedded.mount(sidebar: contextValue?.sidebarView, chat: contextValue?.chatView)
+        }
+        setEmbeddedActive(embedded.active)
+    }
+
+    func setEmbeddedActive(_ active: Bool) {
+        guard embedded != nil else { return }
+        contextValue?.setEmbeddedActive(active && authContextValue == nil)
+        authContextValue?.setEmbeddedActive(active)
+        updatePeerPresence()
+    }
+
+    func applyEmbeddedTheme() {
+        guard let palette = embedded?.palette else { return }
+        let updated = generateTheme(palette: palette, cloudTheme: nil,
+            bubbled: theme.bubbled, fontSize: theme.fontSize, wallpaper: theme.wallpaper)
+        telegramUpdateTheme(updated, window: nil, animated: false)
+        contextValue?.applyNewTheme()
+    }
+
+    func stopEmbedded() {
+        guard embedded != nil else { return }
+        setEmbeddedActive(false)
+        lifetimeDisposables.dispose()
+        nofityDisposable.dispose()
+        handleEventContextDisposable.dispose()
+        proxyDisposable.dispose()
+        encryptionValue.set(.never())
+        timer?.invalidate()
+        crashTimer?.invalidate()
+        if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
+        eventMonitor = nil
+        observerTokens.forEach { $0.0.removeObserver($0.1) }
+        observerTokens.removeAll()
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        sharedApplicationContextValue?.sharedWakeupManager.stop()
+        sharedApplicationContextValue?.notificationManager.stop()
+        sharedApplicationContextValue?.sharedContext.stop()
+        presentAccountStatus.set(.single(false))
+        context.set(.single(nil))
+        authContext.set(.single(nil))
+        contextValue = nil
+        authContextValue = nil
+        supportAccountContextValue = nil
+        sharedApplicationContextValue = nil
+        sharedContextPromise.set(.never())
+        window.isPushToTalkEquaivalent = nil
+        if appDelegate === self { appDelegate = nil }
+        if mw === window { mw = nil }
+    }
+
     private func launchInterface() {
         initializeAccountManagement()
         
@@ -514,7 +619,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         let window = self.window!
         
         System.updateScaleFactor(window.backingScaleFactor)
-        window.minSize = NSMakeSize(380, 500)
+        if embedded == nil { window.minSize = NSMakeSize(380, 500) }
         
         let appEncryption = AppEncryptionParameters(path: rootPath)
 
@@ -530,18 +635,20 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                  transaction.getSharedData(SharedDataKeys.localizationSettings)?.get(LocalizationSettings.self)
             }) |> deliverOnMainQueue
             
-            _ = data.startStandalone(next: { themeSettings, localization in
+            self.lifetimeDisposables.add(data.start(next: { themeSettings, localization in
                 System.legacyMenu = themeSettings.legacyMenu
 
                 if let localization = localization {
-                    applyUILocalization(localization, window: self.window)
-                    UNUserNotifications.current?.registerCategories()
+                    if self.embedded == nil { applyUILocalization(localization, window: self.window) } else { applyShareUILocalization(localization) }
+                    if self.embedded == nil { UNUserNotifications.current?.registerCategories() }
                 }
                 
                 telegramUpdateTheme(updateTheme(with: themeSettings), window: window, animated: false)
 
-                self.window.makeKeyAndOrderFront(self)
-                NSApp.activate(ignoringOtherApps: true)
+                if self.embedded == nil {
+                    self.window.makeKeyAndOrderFront(self)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
 
                 showModal(with: ColdStartPasslockController(checkNextValue: { passcode in
                     appEncryption.applyPasscode(passcode)
@@ -567,7 +674,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                         return EmptyDisposable
                     } |> runOn(prepareQueue)
                 }), for: window)
-            })
+            }))
         }
     }
     
@@ -608,7 +715,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         let window = self.window!
         System.updateScaleFactor(window.backingScaleFactor)
                 
-        window.minSize = NSMakeSize(380, 500)
+        if embedded == nil { window.minSize = NSMakeSize(380, 500) }
         
         let networkDisposable = MetaDisposable()
         
@@ -624,17 +731,17 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         
         let displayUpgrade:(Float?) -> Void = { progress in
             if let progress = progress {
-                let view = HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.window.contentView!).first as? OpmizeDatabaseView ?? OpmizeDatabaseView(frame: self.window.bounds)
+                let view = HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.applicationView!).first as? OpmizeDatabaseView ?? OpmizeDatabaseView(frame: self.window.bounds)
                 view.setProgress(progress)
-                self.window.contentView?.addSubview(view, positioned: .below, relativeTo: self.window.contentView?.subviews.first)
-                self.window.makeKeyAndOrderFront(self)
+                self.applicationView?.addSubview(view, positioned: .below, relativeTo: self.applicationView?.subviews.first)
+                if self.embedded == nil { self.window.makeKeyAndOrderFront(self) }
             } else {
-                (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.window.contentView!).first as? NSView)?.removeFromSuperview()
+                (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.applicationView!).first as? NSView)?.removeFromSuperview()
             }
         }
         
         
-        let _ = (upgradedAccounts(accountManager: accountManager, rootPath: rootPath, encryptionParameters: encryptionParameters) |> deliverOnMainQueue).start(next: { value in
+        self.lifetimeDisposables.add((upgradedAccounts(accountManager: accountManager, rootPath: rootPath, encryptionParameters: encryptionParameters) |> deliverOnMainQueue).start(next: { value in
             if value > 0 {
                 displayUpgrade(value)
             } else {
@@ -649,7 +756,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 return transaction.getSharedData(SharedDataKeys.localizationSettings)?.get(LocalizationSettings.self)
             }) |> deliverOnMainQueue
             
-            _ = data.start(next: { passcode, themeSettings, localization in
+            self.lifetimeDisposables.add(data.start(next: { passcode, themeSettings, localization in
                 switch passcode {
                 case let .numericalPassword(value), let .plaintextPassword(value):
                     if !value.isEmpty {
@@ -663,8 +770,8 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 }
                 
                 if let localization = localization {
-                    applyUILocalization(localization, window: self.window)
-                    UNUserNotifications.current?.registerCategories()
+                    if self.embedded == nil { applyUILocalization(localization, window: self.window) } else { applyShareUILocalization(localization) }
+                    if self.embedded == nil { UNUserNotifications.current?.registerCategories() }
                 }
                             
                 telegramUpdateTheme(updateTheme(with: themeSettings), window: window, animated: false)
@@ -687,7 +794,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                     }
                 } |> deliverOnMainQueue
                 
-                _ = signal.start(next: { updatedTheme in
+                self.lifetimeDisposables.add(signal.start(next: { updatedTheme in
                     if let theme = updatedTheme {
                         if self.contextValue == nil {
                             telegramUpdateTheme(theme, window: window, animated: true)
@@ -698,23 +805,24 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                             })
                         }
                     }
-                })
+                }))
                 
 
                 
                 //
                 
-                NotificationCenter.default.addObserver(forName: NSWindow.didChangeBackingPropertiesNotification, object: window, queue: nil, using: { notification in
+                let backingObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeBackingPropertiesNotification, object: window, queue: nil, using: { notification in
                     System.updateScaleFactor(window.backingScaleFactor)
                     backingProperties.set(window.backingScaleFactor)
                 })
+                    self.observerTokens.append((NotificationCenter.default, backingObserver))
                 
                 let autoNightSignal = viewDidChangedAppearance.get() |> mapToSignal { _ in
                     return combineLatest(autoNightSettings(accountManager: accountManager), Signal<Void, NoError>.single(Void()) |> then( Signal<Void, NoError>.single(Void()) |> delay(60, queue: Queue.mainQueue()) |> restart))
                     } |> deliverOnMainQueue
                 
                 
-                _ = combineLatest(autoNightSignal, additionalSettings(accountManager: accountManager)).start(next: { value1, value2 in
+                self.lifetimeDisposables.add(combineLatest(autoNightSignal, additionalSettings(accountManager: accountManager)).start(next: { value1, value2 in
                     
                     let preference = value1.0
                     let alwaysDarkMode = value2.alwaysDarkMode
@@ -786,18 +894,18 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                         }
                         return settings
                     }).start()
-                })
+                }))
                 
                 
                 let basicLocalization = Atomic<LocalizationSettings?>(value: localization)
-                _ = (accountManager.sharedData(keys: [SharedDataKeys.localizationSettings]) |> deliverOnMainQueue).start(next: { view in
+                self.lifetimeDisposables.add((accountManager.sharedData(keys: [SharedDataKeys.localizationSettings]) |> deliverOnMainQueue).start(next: { view in
                     if let settings = view.entries[SharedDataKeys.localizationSettings]?.get(LocalizationSettings.self) {
                         if basicLocalization.swap(settings) != settings {
-                            applyUILocalization(settings, window: self.window)
-                            UNUserNotifications.current?.registerCategories()
+                            if self.embedded == nil { applyUILocalization(settings, window: self.window) } else { applyShareUILocalization(settings) }
+                            if self.embedded == nil { UNUserNotifications.current?.registerCategories() }
                         }
                     }
-                })
+                }))
                 
                 
                 let voipVersions = OngoingCallContext.versions(includeExperimental: true, includeReference: false).map { version, supportsVideo -> CallSessionManagerImplementationVersion in
@@ -834,10 +942,10 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                     |> map { _, accounts, _ -> [Account] in
                         return accounts.map({ $0.1 })
                 }
-                let _ = (sharedAccountInfos(accountManager: sharedContext.accountManager, accounts: rawAccounts)
+                self.lifetimeDisposables.add((sharedAccountInfos(accountManager: sharedContext.accountManager, accounts: rawAccounts)
                     |> deliverOn(Queue())).start(next: { infos in
                         storeAccountsData(rootPath: rootPath, accounts: infos)
-                    })
+                    }))
                 
                 
                 let notificationsBindings = SharedNotificationBindings(navigateToChat: { account, peerId in
@@ -922,7 +1030,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
 
                 })
                 
-                let sharedNotificationManager = SharedNotificationManager(activeAccounts: sharedContext.activeAccounts |> map { ($0.0, $0.1.map { ($0.0, $0.1) }) }, appEncryption: appEncryption, accountManager: accountManager, bindings: notificationsBindings)
+                let sharedNotificationManager = SharedNotificationManager(activeAccounts: sharedContext.activeAccounts |> map { ($0.0, $0.1.map { ($0.0, $0.1) }) }, appEncryption: appEncryption, accountManager: accountManager, bindings: notificationsBindings, registerNotifications: self.embedded == nil)
                 let sharedWakeupManager = SharedWakeupManager(sharedContext: sharedContext, inForeground: self.presentAccountStatus.get())
                 let sharedApplicationContext = SharedApplicationContext(sharedContext: sharedContext, notificationManager: sharedNotificationManager, sharedWakeupManager: sharedWakeupManager)
                 
@@ -986,7 +1094,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                                 if let account = account {
                                                                     
                                     let context = AccountContext(sharedContext: sharedApplicationContext.sharedContext, window: window, account: account)
-                                    return AuthorizedApplicationContext(window: window, context: context, launchSettings: settings ?? LaunchSettings.defaultSettings, callSession: sharedContext.getCrossAccountCallSession(), groupCallContext: sharedContext.getCrossAccountGroupCall(), inlinePlayerContext: sharedContext.getCrossInlinePlayer(), folders: folders)
+                                    return AuthorizedApplicationContext(window: window, context: context, launchSettings: settings ?? LaunchSettings.defaultSettings, callSession: sharedContext.getCrossAccountCallSession(), groupCallContext: sharedContext.getCrossAccountGroupCall(), inlinePlayerContext: sharedContext.getCrossInlinePlayer(), folders: folders, embedded: self.embedded != nil)
                                     
                                 } else {
                                     return nil
@@ -1050,7 +1158,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                             |> deliverOnMainQueue
                             |> mapToSignal { accountAndSettings -> Signal<UnauthorizedApplicationContext?, NoError> in
                                 if let accountAndSettings = accountAndSettings {
-                                    return .single(UnauthorizedApplicationContext(window: window, sharedContext: sharedApplicationContext.sharedContext, account: accountAndSettings.0, otherAccountPhoneNumbers: accountAndSettings.1))
+                                    return .single(UnauthorizedApplicationContext(window: window, sharedContext: sharedApplicationContext.sharedContext, account: accountAndSettings.0, otherAccountPhoneNumbers: accountAndSettings.1, embedded: self.embedded != nil))
                                 } else {
                                     return .single(nil)
                                 }
@@ -1060,7 +1168,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 
                 
                 
-                _ = (self.context.get() |> mapToSignal { context -> Signal<AuthorizedApplicationContext?, NoError> in
+                self.lifetimeDisposables.add((self.context.get() |> mapToSignal { context -> Signal<AuthorizedApplicationContext?, NoError> in
                     if let context = context {
                         return context.ready |> map { [weak context] _ in
                             return context
@@ -1074,27 +1182,31 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                         
                         if let contextValue = self.contextValue {
                             contextValue.context.isCurrent = false
+                            if self.embedded != nil { contextValue.setEmbeddedActive(false) }
                             contextValue.rootView.removeFromSuperview()
                         }
                         
-                        (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.window.contentView!).first as? NSView)?.removeFromSuperview()
+                        (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.applicationView!).first as? NSView)?.removeFromSuperview()
                         
                         closeModal(ColdStartPasslockController.self)
                         closeAllPopovers(for: window)
                         
                         self.contextValue = context
+                        self.updateEmbeddedContent()
                                                 
                         if let context = context {
                             context.context.isCurrent = true
                             context.applyNewTheme()
-                            self.window.contentView?.addSubview(context.rootView, positioned: .below, relativeTo: self.window.contentView?.subviews.first)
+                            if self.embedded == nil {
+                                self.applicationView?.addSubview(context.rootView, positioned: .below, relativeTo: self.applicationView?.subviews.first)
+                            }
                             
                             context.runLaunchAction()
                             if let executeUrlAfterLogin = self.executeUrlAfterLogin {
                                 self.executeUrlAfterLogin = nil
                                 execute(inapp: inApp(for: executeUrlAfterLogin.nsstring, context: context.context))
                             }
-                            #if !APP_STORE
+                            #if !APP_STORE && !OCTRON_EMBEDDED
                             networkDisposable.set((context.context.account.postbox.preferencesView(keys: [PreferencesKeys.networkSettings]) |> delay(5.0, queue: Queue.mainQueue()) |> deliverOnMainQueue).start(next: { settings in
                                 let settings = settings.values[PreferencesKeys.networkSettings]?.get(NetworkSettings.self)
                                 
@@ -1125,32 +1237,36 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                                 self.processSpotlightAction(action)
                             }
                             
-                            if !self.window.isKeyWindow {
-                                self.window.makeKeyAndOrderFront(self)
+                            if self.embedded == nil {
+                                if !self.window.isKeyWindow {
+                                    self.window.makeKeyAndOrderFront(self)
+                                }
+                                self.window.deminiaturize(self)
+                                NSApp.activate(ignoringOtherApps: true)
                             }
-                            self.window.deminiaturize(self)
-                            NSApp.activate(ignoringOtherApps: true)
                              
                             
                         }
-                    })
+                    }))
                 
                 
                 var presentAuthAnimated: Bool = false
                 
                 let authContextReadyDisposable = MetaDisposable()
                 
-                _ = (self.authContext.get()
+                self.lifetimeDisposables.add((self.authContext.get()
                     |> deliverOnMainQueue).start(next: { context in
                         
-                        (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.window.contentView!).first as? NSView)?.removeFromSuperview()
+                        (HackUtils.findElements(byClass: "Telegram.OpmizeDatabaseView", in: self.applicationView!).first as? NSView)?.removeFromSuperview()
                         
                         if let authContextValue = self.authContextValue {
                             authContextValue.account.shouldBeServiceTaskMaster.set(.single(.never))
+                            if self.embedded != nil { authContextValue.setEmbeddedActive(false) }
                             authContextValue.modal.close()
                         }
                         self.authContextValue = context
-                        if let context = context {
+                        self.updateEmbeddedContent()
+                        if let context = context, self.embedded == nil {
                             let isReady: Signal<Bool, NoError> = .single(true)
                             authContextReadyDisposable.set((isReady
                                 |> filter { $0 }
@@ -1160,7 +1276,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                                     window.makeKeyAndOrderFront(nil)
                                     showModal(with: context.modal, for: window, animated: presentAuthAnimated)
                                     
-                                    #if !APP_STORE
+                                    #if !APP_STORE && !OCTRON_EMBEDDED
                                     networkDisposable.set((context.account.postbox.preferencesView(keys: [PreferencesKeys.networkSettings]) |> delay(5.0, queue: Queue.mainQueue()) |> deliverOnMainQueue).start(next: { settings in
                                         let settings = settings.values[PreferencesKeys.networkSettings]?.get(NetworkSettings.self)
                                         
@@ -1194,7 +1310,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                             presentAuthAnimated = true
                             authContextReadyDisposable.set(nil)
                         }
-                    })
+                    }))
                 
                 
                 
@@ -1203,16 +1319,17 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 //
                 
                 
-                self.saveIntermediateDate()
+                if self.embedded == nil { self.saveIntermediateDate() }
                 
                 
                 if #available(OSX 10.14, *) {
-                    DistributedNotificationCenter.default().addObserver(forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: nil, using: { _ in
+                    let appearanceObserver = DistributedNotificationCenter.default().addObserver(forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: nil, using: { _ in
                         delay(0.1, closure: {
                             forceUpdateStatusBarIconByDockTile(sharedContext: sharedContext)
                             viewDidChangedAppearance.set(true)
                         })
                     })
+                    self.observerTokens.append((DistributedNotificationCenter.default(), appearanceObserver))
                     
                     (window.contentView as? View)?.viewDidChangedEffectiveAppearance = {
                         viewDidChangedAppearance.set(true)
@@ -1221,7 +1338,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 
                 NotificationCenter.default.addObserver(self, selector: #selector(self.windiwDidChangeBackingProperties), name: NSWindow.didChangeBackingPropertiesNotification, object: window)
                 
-                self.window.contentView?.wantsLayer = true
+                self.applicationView?.wantsLayer = true
                 
                 sharedWakeupManager.onSleepValueUpdated = { value in
                     self.updatePeerPresence()
@@ -1235,8 +1352,8 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 }, queue: .mainQueue())
                 self.timer?.start()
                 
-            })
-        })
+            }))
+        }))
         
     }
 
@@ -1268,8 +1385,11 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
     
     
     private func updatePeerPresence() {
+        if let embedded {
+            activeValue.set(embedded.active && window.isVisible && NSApp.isActive && !NSApp.isHidden)
+        }
         if let sharedApplicationContextValue = sharedApplicationContextValue {
-            let isOnline = NSApp.isActive && NSApp.isRunning && !NSApp.isHidden && !sharedApplicationContextValue.sharedWakeupManager.isSleeping && !sharedApplicationContextValue.notificationManager._lockedValue.screenLock && !sharedApplicationContextValue.notificationManager._lockedValue.passcodeLock && SystemIdleTime() < 30
+            let isOnline = (embedded?.active ?? true) && (embedded == nil || window.isVisible) && NSApp.isActive && NSApp.isRunning && !NSApp.isHidden && !sharedApplicationContextValue.sharedWakeupManager.isSleeping && !sharedApplicationContextValue.notificationManager._lockedValue.screenLock && !sharedApplicationContextValue.notificationManager._lockedValue.passcodeLock && SystemIdleTime() < 30
             
             
             presentAccountStatus.set(.single(isOnline) |> then(.single(isOnline) |> delay(50, queue: Queue.concurrentBackgroundQueue())) |> restart)
@@ -1288,7 +1408,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
 
 
     @IBAction func checkForUpdates(_ sender: Any) {
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
             showModal(with: InputDataModalController(AppUpdateViewController()), for: window)
             #if STABLE
                 if let context = self.contextValue?.context {
@@ -1312,7 +1432,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
     
     
     @objc func checkUpdates() {
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
         showModal(with: InputDataModalController(AppUpdateViewController()), for: window)
         #endif
     }
@@ -1370,9 +1490,10 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
     private func hangKeybind(_ sharedContext: SharedAccountContext) {
         let signal = combineLatest(queue: .mainQueue(), voiceCallSettings(sharedContext.accountManager), sharedContext.groupCallContext)
         
-        _ = signal.start(next: { settings, activeCall in
+        self.lifetimeDisposables.add(signal.start(next: { settings, activeCall in
             if let pushToTalk = settings.pushToTalk, let _ = activeCall {
-                self.window.isPushToTalkEquaivalent = { event in
+                self.window.isPushToTalkEquaivalent = { [weak self] event in
+                    guard self?.embedded?.active ?? true else { return false }
                     if !pushToTalk.modifierFlags.isEmpty, pushToTalk.keyCodes.contains(event.keyCode) {
                         for modifier in pushToTalk.modifierFlags {
                             if modifier.flag == event.modifierFlags.rawValue {
@@ -1386,7 +1507,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                 self.window.isPushToTalkEquaivalent = nil
             }
             
-        })
+        }))
 
         
         
@@ -1505,7 +1626,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         self.terminated = true
         deinitCrashHandler(containerUrl)
         
-        #if !APP_STORE
+        #if !APP_STORE && !OCTRON_EMBEDDED
             updateAppIfNeeded()
         #endif
     }

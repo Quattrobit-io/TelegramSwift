@@ -2,6 +2,14 @@
 set -e
 set -x
 
+export TELEGRAM_BUILD_JOBS="${TELEGRAM_BUILD_JOBS:-2}"
+if ! [[ "$TELEGRAM_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "TELEGRAM_BUILD_JOBS must be a positive integer" >&2
+    exit 1
+fi
+export MAKEFLAGS="-j$TELEGRAM_BUILD_JOBS"
+export CMAKE_BUILD_PARALLEL_LEVEL="$TELEGRAM_BUILD_JOBS"
+
 
 declare -a libs=("OpenH264" "OpenSSL" "libopus" "libvpx" "mozjpeg" "libwebp" "dav1d" "ffmpeg" "webrtc" "tde2e")
 declare -a libname=("OpenH264" "OpenSSLEncryption" "libopus" "libvpx" "Mozjpeg" "libwebp" "dav1d" "ffmpeg" "webrtc" "tde2e")
@@ -46,8 +54,8 @@ do
     COMMON_SETUP=" -project ${SCRIPT_DIR}/../core-xprojects/${LIB}/${FWNAME}.xcodeproj -configuration Release BUILD_LIBRARY_FOR_DISTRIBUTION=YES "
 
 
-    DERIVED_DATA_PATH=$( mktemp -d )
-    xcrun xcodebuild build \
+    DERIVED_DATA_PATH="${SCRIPT_DIR}/../work/frameworks/${FWNAME}"
+    xcrun xcodebuild build -jobs "$TELEGRAM_BUILD_JOBS" \
         $COMMON_SETUP \
         -scheme "${FWNAME}" \
         -derivedDataPath "${DERIVED_DATA_PATH}" \

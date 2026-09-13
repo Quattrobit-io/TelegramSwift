@@ -1,0 +1,6 @@
+framework module Telegram {
+    umbrella header "Telegram.h"
+    exclude header "OctronTelegram.h"
+    export *
+    module * { export * }
+}

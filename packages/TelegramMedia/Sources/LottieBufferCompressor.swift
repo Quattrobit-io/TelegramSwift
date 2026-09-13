@@ -400,11 +400,11 @@ private final class CacheRemovable {
        
     }
     
-    fileprivate func start() {
+    fileprivate func start() -> Disposable {
         let signal = Signal<Void, NoError>.single(Void()) |> deliverOn(lzfseQueue) |> then (Signal<Void, NoError>.single(Void()) |> delay(30 * 60, queue: lzfseQueue) |> restart)
         
         
-        _ = signal.start(next: {
+        return signal.start(next: {
             self.clean()
         })
     }
@@ -437,8 +437,8 @@ private final class CacheRemovable {
 }
 private let cleaner = CacheRemovable()
 
-public func startLottieCacheCleaner() {
-    cleaner.start()
+public func startLottieCacheCleaner() -> Disposable {
+    return cleaner.start()
 }
 
 

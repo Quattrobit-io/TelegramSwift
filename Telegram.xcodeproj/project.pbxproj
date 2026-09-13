@@ -1624,6 +1624,7 @@
 		D0906CFC254BFE1D000E6961 /* ModalPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0906CFB254BFE1D000E6961 /* ModalPreviews.swift */; };
 		D093474E242DCFC4000ECA88 /* PeerMediaGroupPeersController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D093474D242DCFC4000ECA88 /* PeerMediaGroupPeersController.swift */; };
 		D098C7191D7E175A007784E4 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D098C7181D7E175A007784E4 /* AppDelegate.swift */; };
+		0A17F0A29A8394C01C8F9340 /* OctronTelegramHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A17F0A29A8394C01C8F9341 /* OctronTelegramHost.swift */; };
 		D098C71B1D7E175A007784E4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D098C71A1D7E175A007784E4 /* Assets.xcassets */; };
 		D098C71E1D7E175A007784E4 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = D098C71C1D7E175A007784E4 /* MainMenu.xib */; };
 		D098C73A1D7E1C40007784E4 /* AuthController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D098C7391D7E1C40007784E4 /* AuthController.swift */; };
@@ -3306,6 +3307,7 @@
 		D0983E182568373E00467703 /* AppCenterCrashes.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AppCenterCrashes.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D098C7151D7E175A007784E4 /* Telegram.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Telegram.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D098C7181D7E175A007784E4 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0A17F0A29A8394C01C8F9341 /* OctronTelegramHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OctronTelegramHost.swift; sourceTree = "<group>"; };
 		D098C71A1D7E175A007784E4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D098C71F1D7E175A007784E4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D098C7381D7E1A62007784E4 /* Telegram-Mac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Telegram-Mac.entitlements"; sourceTree = "<group>"; };
@@ -6740,6 +6742,7 @@
 				D098C7381D7E1A62007784E4 /* Telegram-Mac.entitlements */,
 				D00CA6502281BB0900FFACAD /* Telegram-Sandbox.entitlements */,
 				D098C7181D7E175A007784E4 /* AppDelegate.swift */,
+				0A17F0A29A8394C01C8F9341 /* OctronTelegramHost.swift */,
 				27CEA34C27B2A31B00472CB1 /* SupportAccountContext.swift */,
 				C2F6190C1E844DCD007A051B /* TelegramAccountAuxiliaryMethods.swift */,
 				9F7D422822240235007B68BB /* account */,
@@ -8378,6 +8381,7 @@
 				278751632D9548930005D9F9 /* GroupCallInviteLinkController.swift in Sources */,
 				9F0367F22272108800456348 /* ProxyQRCodeRowItem.swift in Sources */,
 				D098C7191D7E175A007784E4 /* AppDelegate.swift in Sources */,
+				0A17F0A29A8394C01C8F9340 /* OctronTelegramHost.swift in Sources */,
 				C2C73A5B1EEAF3AE00DB8420 /* ChannelEventFilterModalController.swift in Sources */,
 				C2271DD21DAF6DF5001792B6 /* EmptyChatViewController.swift in Sources */,
 				C23BC37E1E9BB28F00D79F92 /* AddContactModalController.swift in Sources */,
@@ -9006,7 +9010,7 @@
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-Wl,-ld_classic",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = ru.keepcoder.Telegram;
@@ -9060,7 +9064,7 @@
 				MARKETING_VERSION = 11.14.1;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "";
-				OTHER_LDFLAGS = "$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib";
+				OTHER_LDFLAGS = "$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = ru.keepcoder.Telegram.TelegramShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -9112,7 +9116,7 @@
 				MARKETING_VERSION = 11.14.1;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CODE_SIGN_FLAGS = "";
-				OTHER_LDFLAGS = "$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib";
+				OTHER_LDFLAGS = "$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				"OTHER_SWIFT_FLAGS[arch=*]" = "";
 				PRODUCT_BUNDLE_IDENTIFIER = ru.keepcoder.Telegram.TelegramShare;
@@ -9237,7 +9241,7 @@
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-Wl,-ld_classic",
-					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/macosx/libswiftAppKit.dylib",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = ru.keepcoder.Telegram;

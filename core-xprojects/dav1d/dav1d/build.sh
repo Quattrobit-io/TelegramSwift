@@ -22,7 +22,7 @@ mkdir -p "$BUILD_DIR/arm64"
 pushd "$BUILD_DIR/arm64"
 
 meson setup "$SOURCE_DIR" --cross-file="$PWD/../../dav1d-arm64.meson" $MESON_OPTIONS
-ninja
+ninja -j "${TELEGRAM_BUILD_JOBS:-2}"
 popd
 
 # Build for x86_64
@@ -31,7 +31,7 @@ mkdir -p "$BUILD_DIR/x86_64"
 pushd "$BUILD_DIR/x86_64"
 
 meson setup "$SOURCE_DIR" --cross-file="$PWD/../../dav1d-x86_64.meson" $MESON_OPTIONS
-ninja
+ninja -j "${TELEGRAM_BUILD_JOBS:-2}"
 popd
 
 # Create universal binary

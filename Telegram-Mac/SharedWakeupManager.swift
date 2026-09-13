@@ -47,6 +47,7 @@ private struct AccountTasks {
 
 
 class SharedWakeupManager {
+    private let lifetimeDisposables = DisposableSet()
     private var accountsAndTasks: [(Account, Bool, AccountTasks)] = []
     private let sharedContext: SharedAccountContext
     
@@ -74,10 +75,10 @@ class SharedWakeupManager {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(receiveSleepNote(_:)), name: NSWorkspace.screensDidSleepNotification, object: nil)
 
         
-        _ = (inForeground |> deliverOnMainQueue).start(next: { value in
+        lifetimeDisposables.add((inForeground |> deliverOnMainQueue).start(next: { value in
                 self.inForeground = value
                 self.checkTasks()
-            })
+            }))
 
        
         let signal = (sharedContext.activeAccounts |> map { ($0.0, $0.1.map { ($0.0, $0.1) }) } |> mapToSignal { primary, accounts -> Signal<[(Account, Bool, AccountTasks)], NoError> in
@@ -93,13 +94,23 @@ class SharedWakeupManager {
         } |> deliverOnMainQueue)
 
         
-        _ = signal.start(next: { accountsAndTasks in
+        lifetimeDisposables.add(signal.start(next: { accountsAndTasks in
             self.accountsAndTasks = accountsAndTasks
             self.updateRindingsStatuses(self.accountsAndTasks.map( { $0.0 } ))
             self.checkTasks()
-        })
+        }))
     }
     
+    func stop() {
+        lifetimeDisposables.dispose()
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        for (account, _, _) in accountsAndTasks {
+            account.shouldBeServiceTaskMaster.set(.single(.never))
+        }
+        accountsAndTasks.removeAll()
+        onSleepValueUpdated = nil
+    }
+
     private func checkTasks() {
         updateAccounts()
     }
@@ -142,7 +153,7 @@ class SharedWakeupManager {
                 |> filter { $0 != nil && !$0!.0 }
                 |> map { $0! }
                 |> deliverOnMainQueue
-                _ = combine.start(next: { data in
+                lifetimeDisposables.add(combine.start(next: { data in
                     let state = data.1
                     let initialData = data.2
                     
@@ -167,7 +178,7 @@ class SharedWakeupManager {
                             
                         }
                     }
-                })
+                }))
                 ringingStatesActivated.insert(account.id)
             }
             

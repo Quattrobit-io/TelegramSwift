@@ -1060,7 +1060,7 @@ final class AccountContext {
         freeSpaceSignal = (freeSpaceSignal |> then(.complete() |> suspendAwareDelay(60.0 * 30, queue: Queue.concurrentDefaultQueue()))) |> restart
         
         
-        let isLocked = (NSApp.delegate as? AppDelegate)?.passlock ?? .single(false)
+        let isLocked = appDelegate?.passlock ?? .single(false)
         
         
         freeSpaceDisposable.set(combineLatest(queue: .mainQueue(), freeSpaceSignal, isKeyWindow, isLocked).start(next: { [weak self] space, isKeyWindow, locked in

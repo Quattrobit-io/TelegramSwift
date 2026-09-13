@@ -48,7 +48,7 @@ cmake -G Ninja \
     -DTG_OWT_OPENH264_INCLUDE_PATH=$OPENH264_DIR \
     -DTG_OWT_FFMPEG_INCLUDE_PATH=$FFMPEG_DIR ..
 
-ninja
+ninja -j "${TELEGRAM_BUILD_JOBS:-2}"
 LIBS="$LIBS ${BUILD_DIR}$OUT_DIR/libtg_owt.a"
     # -DCMAKE_BUILD_TYPE=Debug
 

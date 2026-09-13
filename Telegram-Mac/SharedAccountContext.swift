@@ -65,6 +65,7 @@ public final class AccountWithInfo: Equatable {
 
 
 class SharedAccountContext {
+    private let lifetimeDisposables = DisposableSet()
     let accountManager: AccountManager<TelegramAccountManagerTypes>
 
     #if !SHARE
@@ -249,11 +250,13 @@ class SharedAccountContext {
         self.accountManager.mediaBox.fetchCachedResourceRepresentation = { (resource, representation) -> Signal<CachedMediaResourceRepresentationResult, NoError> in
             return fetchCachedSharedResourceRepresentation(accountManager: accountManager, resource: resource, representation: representation)
         }
-        _ = (baseAppSettings(accountManager: accountManager) |> deliverOnMainQueue).start(next: { settings in
+        lifetimeDisposables.add((baseAppSettings(accountManager: accountManager) |> deliverOnMainQueue).start(next: { settings in
             _ = self._baseSettings.swap(settings)
+            #if !OCTRON_EMBEDDED
             self.updateStatusBar(settings.statusBar)
             forceUpdateStatusBarIconByDockTile(sharedContext: self)
-        })
+            #endif
+        }))
         #endif
         
         
@@ -280,7 +283,8 @@ class SharedAccountContext {
         
 
         let differenceDisposable = MetaDisposable()
-        let _ = (accountManager.accountRecords()
+        lifetimeDisposables.add(differenceDisposable)
+        lifetimeDisposables.add((accountManager.accountRecords()
             |> map { view -> (AccountRecordId?, [AccountRecordId: AccountAttributes], (AccountRecordId, Bool)?) in
                 var result: [AccountRecordId: AccountAttributes] = [:]
                 for record in view.records {
@@ -499,10 +503,10 @@ class SharedAccountContext {
                     
                     if (authAccount != nil || self.activeAccountsValue!.primary != nil) && !self.cleaningUpAccounts {
                         self.cleaningUpAccounts = true
-                        let _ = managedCleanupAccounts(networkArguments: networkArguments, accountManager: self.accountManager, rootPath: rootPath, auxiliaryMethods: telegramAccountAuxiliaryMethods, encryptionParameters: encryptionParameters).start()
+                        self.lifetimeDisposables.add(managedCleanupAccounts(networkArguments: networkArguments, accountManager: self.accountManager, rootPath: rootPath, auxiliaryMethods: telegramAccountAuxiliaryMethods, encryptionParameters: encryptionParameters).start())
                     }
                 }))
-            })
+            }))
         
 
         
@@ -552,22 +556,37 @@ class SharedAccountContext {
         } |> deliverOnMainQueue
         
         #if !SHARE
+        #if !OCTRON_EMBEDDED
         var spotlights:[AccountRecordId : SpotlightContext] = [:]
+        #endif
         
-        _ = signal.start(next: { (primary, accounts, photos) in
+        lifetimeDisposables.add(signal.start(next: { (primary, accounts, photos) in
             self.activeAccountsInfoValue = (primary, accounts)
             self.accountPhotos = photos
             self.updateStatusBarMenuItem()
             BrowserStateContext.checkActive(accounts.map { $0.account.id })
             
-            #if !SHARE
+            #if !OCTRON_EMBEDDED
             spotlights.removeAll()
             for info in accounts {
                 spotlights[info.account.id] = SpotlightContext(engine: TelegramEngine(account: info.account))
             }
             #endif
-        })
+        }))
         #endif
+    }
+
+    func stop() {
+        lifetimeDisposables.dispose()
+        managedAccountDisposables.dispose()
+        batteryLevelTimer?.invalidate()
+        activeAccountsWithInfoPromise.set(.never())
+        activeAccountsPromise.set(.never())
+        activeAccountsValue?.currentAuth?.shouldBeServiceTaskMaster.set(.single(.never))
+        activeAccountsValue = nil
+        activeAccountsInfoValue = nil
+        accountPhotos.removeAll()
+        updateStatusBar(false)
     }
     
     public func beginNewAuth(testingEnvironment: Bool) {

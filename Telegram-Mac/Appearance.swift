@@ -3522,8 +3522,12 @@ private let appearanceDisposable = MetaDisposable()
 
 func telegramUpdateTheme(_ theme: TelegramPresentationTheme, window: Window? = nil, animated: Bool) {
     assertOnMainThread()
+    let theme = appDelegate?.embedded?.palette.map { palette in
+        generateTheme(palette: palette, cloudTheme: nil, bubbled: theme.bubbled,
+                      fontSize: theme.fontSize, wallpaper: theme.wallpaper)
+    } ?? theme
     updateTheme(theme)
-    if let window = window {
+    if let window = window, appDelegate?.embedded?.window !== window {
         
         if animated, let contentView = window.contentView, window.isVisible, window.occlusionState.contains(.visible), window.windowNumber > 0 {
 

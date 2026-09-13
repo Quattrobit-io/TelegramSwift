@@ -56,11 +56,11 @@ class ColdStartPasslockController: ModalViewController {
             verifyAlert_button(for: window, information: strings().accountConfirmLogoutText, successHandler: { [weak self] _ in
                 guard let `self` = self else { return }
                 
-                _ = showModalProgress(signal: self.logoutImpl(), for: window).start(completed: { [weak self] in
+                self.logoutDisposable.set(showModalProgress(signal: self.logoutImpl(), for: window).start(completed: { [weak self] in
                     delay(0.2, closure: { [weak self] in
                         self?.close()
                     })
-                })
+                }))
             })
         }
         

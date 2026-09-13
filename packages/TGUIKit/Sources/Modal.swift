@@ -563,7 +563,7 @@ public class Modal: NSObject {
     private let parentView: NSView?
     
     public init(controller:ModalViewController, for window:Window, animated: Bool = true, isOverlay: Bool, animationType: ModalAnimationType, parentView: NSView? = nil) {
-        self.parentView = parentView
+        self.parentView = parentView ?? window.modalContainer
         self.animationType = animationType
         self.controller = controller
         self.window = window
@@ -754,12 +754,12 @@ public class Modal: NSObject {
     
     func observableView(_ view: NSView, didAddSubview: NSView) {
         if isOverlay {
-            var subviews = self.window.contentView!.subviews
+            var subviews = topView.subviews
             if let index = subviews.firstIndex(of: self.background) {
                 subviews.remove(at: index)
                 subviews.append(self.background)
             }
-            self.window.contentView?.subviews = subviews
+            topView.subviews = subviews
         }
     }
     
@@ -953,7 +953,7 @@ public class Modal: NSObject {
     
     deinit {
         disposable.dispose()
-        (window.contentView as? ObervableView)?.remove(listener: self)
+        (topView as? ObervableView)?.remove(listener: self)
         for i in stride(from: activeModals.count - 1, to: -1, by: -1) {
             if activeModals[i].value == self {
                 activeModals.remove(at: i)
@@ -1176,7 +1176,7 @@ public func showModal(with controller:ModalViewController, for window:Window, is
     if #available(OSX 10.12.2, *) {
         window.touchBar = nil
     }
-    window.makeKeyAndOrderFront(nil)
+    if window.modalContainer == nil { window.makeKeyAndOrderFront(nil) }
     controller.modal?.show()
 }
 

@@ -6,7 +6,7 @@
 //  Copyright © 2019 Telegram. All rights reserved.
 //
 
-#if !APP_STORE
+#if !APP_STORE && !OCTRON_EMBEDDED
 
 import Cocoa
 import TGUIKit

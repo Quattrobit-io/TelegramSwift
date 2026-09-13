@@ -25,7 +25,7 @@ GEN_DIR="$BUILD_DIR/native-gen"
 mkdir -p "$GEN_DIR"
 pushd "$GEN_DIR"
 cmake -DTD_GENERATE_SOURCE_FILES=ON "$SOURCE_DIR"
-cmake --build . -- -j$(sysctl -n hw.ncpu)
+cmake --build . -- -j"${TELEGRAM_BUILD_JOBS:-2}"
 popd
 
 # Step 2: Build for arm64
@@ -38,7 +38,7 @@ cmake "$SOURCE_DIR" \
     -DCMAKE_OSX_ARCHITECTURES=arm64 \
     $options
 
-cmake --build . --target tde2e -j$(sysctl -n hw.ncpu)
+cmake --build . --target tde2e -j"${TELEGRAM_BUILD_JOBS:-2}"
 popd
 
 # Step 3: Build for x86_64
@@ -51,7 +51,7 @@ cmake "$SOURCE_DIR" \
     -DCMAKE_OSX_ARCHITECTURES=x86_64 \
     $options
 
-cmake --build . --target tde2e -j$(sysctl -n hw.ncpu)
+cmake --build . --target tde2e -j"${TELEGRAM_BUILD_JOBS:-2}"
 popd
 
 # Step 4: Create universal binary

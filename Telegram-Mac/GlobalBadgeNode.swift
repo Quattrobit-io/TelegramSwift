@@ -196,7 +196,7 @@ class GlobalBadgeNode: Node {
                 }
                 strongSelf.layoutChanged?()
                 
-                if dockTile {
+                if dockTile && appDelegate?.embedded == nil {
                     NSApplication.shared.dockTile.badgeLabel = result.dockText
                     forceUpdateStatusBarIconByDockTile(sharedContext: sharedContext)
                 }
@@ -233,6 +233,7 @@ class GlobalBadgeNode: Node {
 }
 
 func forceUpdateStatusBarIconByDockTile(sharedContext: SharedAccountContext) {
+    guard appDelegate?.embedded == nil else { return }
     if let count = Int(NSApplication.shared.dockTile.badgeLabel ?? "0") {
         var color: NSColor = .black
         if #available(OSX 10.14, *) {

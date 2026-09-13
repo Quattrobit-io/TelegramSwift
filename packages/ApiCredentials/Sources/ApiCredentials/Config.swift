@@ -1,61 +1,61 @@
 import Cocoa
+import Darwin
 
 public final class ApiEnvironment {
-    public static var apiId:Int32 {
-        return 9
+    private static var credentials: TelegramApplicationCredentials?
+
+    private static var applicationDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Octron/Telegram", isDirectory: true)
     }
-    public static var apiHash:String {
-        return "3975f648bb682ee889f35483bc618d1c"
+
+    public static var configurationURL: URL {
+        applicationDirectory.appendingPathComponent("application.json")
     }
-    
-    public static var bundleId: String {
-        return "ru.keepcoder.Telegram"
+
+    public static func initialize() throws {
+        guard credentials == nil else { return }
+        let loaded = try TelegramApplicationCredentials.load(from: configurationURL)
+        try prepareStorageDirectory(at: applicationDirectory)
+        credentials = loaded
     }
-    public static var intentsBundleId: String {
-        return teamId + "." + bundleId + ".FocusIntents"
+
+    static func prepareStorageDirectory(at directory: URL) throws {
+        let parent = try TelegramApplicationCredentials.openPrivateDirectory(at: directory)
+        defer { close(parent) }
+        if mkdirat(parent, "account-data", 0o700) != 0, errno != EEXIST {
+            throw TelegramApplicationCredentials.ConfigurationError.unsafeStorage
+        }
+        let descriptor = openat(parent, "account-data", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw TelegramApplicationCredentials.ConfigurationError.unsafeStorage
+        }
+        defer { close(descriptor) }
+        var metadata = stat()
+        guard fstat(descriptor, &metadata) == 0, metadata.st_uid == geteuid(),
+              metadata.st_mode & 0o077 == 0 else {
+            throw TelegramApplicationCredentials.ConfigurationError.unsafeStorage
+        }
     }
-    public static var teamId: String {
-        return "6N38VWS5BX"
+
+    public static var apiId: Int32 {
+        guard let credentials else { preconditionFailure("Telegram has not been initialized") }
+        return credentials.apiId
     }
-    
-    
-    
+
+    public static var apiHash: String {
+        guard let credentials else { preconditionFailure("Telegram has not been initialized") }
+        return credentials.apiHash
+    }
+
+    public static var bundleId: String { "io.quattrobit.octron.v1" }
+    public static var intentsBundleId: String { bundleId + ".FocusIntents" }
+
     public static var containerURL: URL? {
-        let appGroupName = ApiEnvironment.group
-        let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)?.appendingPathComponent(prefix)
-        if let containerUrl = containerUrl {
-            try? FileManager.default.createDirectory(at: containerUrl, withIntermediateDirectories: true, attributes: nil)
-            return containerUrl
-        }
-        return nil
+        guard credentials != nil else { return nil }
+        return applicationDirectory.appendingPathComponent("account-data", isDirectory: true)
     }
-    
-    public static func migrate() {
-        if let containerURL = containerURL, let legacy = legacyContainerURL, let sequence = FileManager.default.enumerator(atPath: legacy.path) {
-            let contents = try? FileManager.default.contentsOfDirectory(at: containerURL, includingPropertiesForKeys: nil, options: [])
-            if let contents = contents, !contents.isEmpty {
-                return
-            }
-            for value in sequence {
-                if let value = value as? String {
-                    if !prefixList.contains(value) {
-                        try? FileManager.default.moveItem(at: legacy.appendingPathComponent(value), to: containerURL.appendingPathComponent(value))
-                    }
-                }
-            }
-        }
-    }
-    
-    public static var legacyContainerURL: URL? {
-        let appGroupName = ApiEnvironment.group
-        let containerUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
-        return containerUrl
-    }
-    
-    public static var group: String {
-        return teamId + "." + bundleId
-    }
-    
+
     public static var appData: Data {
         let apiData = evaluateApiData() ?? ""
         let dict:[String: String] = ["bundleId": bundleId, "data": apiData]
@@ -63,10 +63,6 @@ public final class ApiEnvironment {
     }
     public static var language: String {
         return "macos"
-    }
-    
-    public static var prefixList:[String] {
-        return ["debug", "stable", "appstore", "beta"]
     }
     
     public static var resolvedDeviceName:[String : String]? {
